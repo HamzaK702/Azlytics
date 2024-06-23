@@ -1,4 +1,8 @@
 import authService from '../services/authService.js';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const register = async (req, res) => {
   try {
@@ -20,4 +24,22 @@ const login = async (req, res) => {
   }
 };
 
-export default { register, login };
+const facebookCallback = (req, res) => {
+  try {
+    const token = jwt.sign({ id: req.user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.redirect(`/dashboard?token=${token}`);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const googleCallback = (req, res) => {
+  try {
+    const token = jwt.sign({ id: req.user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.redirect(`/dashboard?token=${token}`);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export default { register, login, facebookCallback, googleCallback };
