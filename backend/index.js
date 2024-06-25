@@ -7,6 +7,8 @@ import mongoose from "mongoose";
 import passport from 'passport';
 import session from 'express-session';
 import authRoutes from "./routes/authRoutes.js";
+import shopifyRouter from "./routes/shopifyRoute.js"
+import cookieParser from 'cookie-parser';
 import './config/passportConfig.js'; 
 
 /* CONFIGURATIONS */
@@ -21,6 +23,7 @@ app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(morgan("common"));
 app.use(cors());
+app.use(cookieParser()); 
 
 // Session middleware
 app.use(session({
@@ -41,6 +44,7 @@ app.get('/hello', (req, res) => {
 
 /* ROUTES */
 app.use("/api", authRoutes);
+app.use('/api', shopifyRouter);
 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;
