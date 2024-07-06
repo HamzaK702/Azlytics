@@ -35,6 +35,21 @@ export class ShopifyController {
     static nonce() {
         return Math.random().toString(36).substring(2, 15);
     }
+
+    static async getShopData(req, res) {
+        const { shop, token } = req.query;
+
+        if (!shop || !token) {
+            return res.status(400).send('Missing shop or token parameter.');
+        }
+
+        try {
+            const shopData = await ShopifyService.getShopData(shop, token);
+            res.status(200).json(shopData);
+        } catch (error) {
+            res.status(500).send('Error fetching shop data: ' + error.message);
+        }
+    }
 }
 
 //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c

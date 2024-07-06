@@ -22,4 +22,19 @@ export class ShopifyService {
             throw new Error('Failed to get access token: ' + (error.response ? error.response.data : error.message));
         }
     }
+
+    static async getShopData(shop, accessToken) {
+        const shopDataRequestUrl = `https://${shop}/admin/api/2021-04/shop.json`;
+
+        try {
+            const response = await axios.get(shopDataRequestUrl, {
+                headers: {
+                    'X-Shopify-Access-Token': accessToken,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error('Failed to fetch shop data: ' + (error.response ? error.response.data : error.message));
+        }
+    }  
 }

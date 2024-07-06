@@ -17,5 +17,7 @@ router.get('/shopify', (req, res) => {
 });
 
 router.get('/shopify/callback', ShopifyController.handleAuth);
+router.get('/shopdata', ShopifyController.getShopData);
+
 
 export default router;
