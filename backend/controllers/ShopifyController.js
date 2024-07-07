@@ -50,6 +50,39 @@ export class ShopifyController {
             res.status(500).send('Error fetching shop data: ' + error.message);
         }
     }
+
+    static async getOrders(req, res) {
+        const { shop, token } = req.query;
+    
+        if (!shop || !token) {
+            return res.status(400).send('Missing shop or token parameter.');
+        }
+    
+        try {
+            const ordersData = await ShopifyService.getOrders(shop, token);
+            res.status(200).json(ordersData.data);
+        } catch (error) {
+            res.status(500).send('Error fetching orders data: ' + error.message);
+        }
+    }
+    
+    static async getProducts(req, res) {
+        const { shop, token } = req.query;
+    
+        if (!shop || !token) {
+            return res.status(400).send('Missing shop or token parameter.');
+        }
+    
+        try {
+           
+            const productsData = await ShopifyService.getProducts(shop, token);
+            res.status(200).json(productsData.data);
+        } catch (error) {
+            res.status(500).send('Error fetching products data: ' + error.message);
+        }
+    }
+
+
 }
 
 //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c

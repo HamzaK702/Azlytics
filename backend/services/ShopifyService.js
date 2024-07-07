@@ -1,40 +1,97 @@
-import axios from 'axios';
-import dotenv from 'dotenv';
 
-dotenv.config();
-
-const apiKey = process.env.SHOPIFY_API_KEY;
-const secret = process.env.SHOPIFY_API_SECRET;
+import fetch from 'node-fetch';
 
 export class ShopifyService {
     static async getAccessToken(shop, code) {
-        const accessTokenRequestUrl = `https://${shop}/admin/oauth/access_token`;
-        const accessTokenPayload = {
-            client_id: apiKey,
-            client_secret: secret,
-            code,
-        };
-
-        try {
-            const response = await axios.post(accessTokenRequestUrl, accessTokenPayload);
-            return response.data.access_token;
-        } catch (error) {
-            throw new Error('Failed to get access token: ' + (error.response ? error.response.data : error.message));
-        }
+        const url = `https://${shop}/admin/oauth/access_token`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: process.env.SHOPIFY_API_KEY,
+                client_secret: process.env.SHOPIFY_API_SECRET,
+                code
+            })
+        });
+        const data = await response.json();
+        return data.access_token;
     }
 
-    static async getShopData(shop, accessToken) {
-        const shopDataRequestUrl = `https://${shop}/admin/api/2021-04/shop.json`;
+    static async getShopData(shop, token) {
+        const url = `https://${shop}/admin/shop.json`;
+        const response = await fetch(url, {
+            headers: {
+                'X-Shopify-Access-Token': token
+            }
+        });
+        return await response.json();
+    }
 
-        try {
-            const response = await axios.get(shopDataRequestUrl, {
-                headers: {
-                    'X-Shopify-Access-Token': accessToken,
-                },
-            });
-            return response.data;
-        } catch (error) {
-            throw new Error('Failed to fetch shop data: ' + (error.response ? error.response.data : error.message));
-        }
-    }  
+    static async fetchGraphQL(shop, token, query) {
+        const url = `https://${shop}/admin/api/2023-04/graphql.json`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Shopify-Access-Token': token
+            },
+            body: JSON.stringify({ query })
+        });
+        const data = await response.json();
+        return data;
+    }
+
+    static async getOrders(shop, token) {
+        const query = `
+            {
+                orders(first: 10) {
+                    edges {
+                        node {
+                            id
+                            name
+                            totalPrice
+                            createdAt
+                            lineItems(first: 5) {
+                                edges {
+                                    node {
+                                        name
+                                        quantity
+                                        price
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+        return await this.fetchGraphQL(shop, token, query);
+    }
+
+    static async getProducts(shop, token) {
+        const query = `
+            {
+                products(first: 10) {
+                    edges {
+                        node {
+                            id
+                            title
+                            variants(first: 5) {
+                                edges {
+                                    node {
+                                        id
+                                        title
+                                        price
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+        return await this.fetchGraphQL(shop, token, query);
+    }
 }

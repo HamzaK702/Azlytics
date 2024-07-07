@@ -16,8 +16,11 @@ router.get('/shopify', (req, res) => {
     }
 });
 
-router.get('/shopify/callback', ShopifyController.handleAuth);
+router.get('/shopify/callback', ShopifyController.handleAuth); //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c
 router.get('/shopdata', ShopifyController.getShopData);
+
+router.get('/shopify/orders', ShopifyController.getOrders);
+router.get('/shopify/products', ShopifyController.getProducts);
 
 
 export default router;
