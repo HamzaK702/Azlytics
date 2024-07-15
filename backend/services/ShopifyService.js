@@ -46,113 +46,150 @@ export class ShopifyService {
 
     static async getOrders(shop, token) {
         const query = `
-          {
-            orders(first: 10) {
-              edges {
-                node {
-                  id
-                  billingAddress {
+            {
+              orders(first: 10) {
+                edges {
+                  node {
                     id
-                    address1
-                    address2
-                    city
-                    company
-                    country
-                    countryCode
-                    countryCodeV2
-                    firstName
-                    lastName
-                    latitude
-                    longitude
-                    name
-                    phone
-                    province
-                    provinceCode
-                    zip
-                  }
-                  cancelReason
-                  cancelledAt
-                  closed
-                  closedAt
-                  createdAt
-                  currencyCode
-                  currentSubtotalLineItemsQuantity
-                  customAttributes {
-                    key
-                    value
-                  }
-                  customer {
-                    id
-                    acceptsMarketing
-                    email
-                    firstName
-                    lastName
-                    phone
-                    tags
-                  }
-                  customerLocale
-                  displayFinancialStatus
-                  displayFulfillmentStatus
-                  email
-                  fulfillmentOrders(first: 10) {
-                    edges {
-                      node {
-                        id
-                        status
-                      }
+                    billingAddress {
+                      id
+                      address1
+                      address2
+                      city
+                      company
+                      country
+                      countryCode
+                      countryCodeV2
+                      firstName
+                      lastName
+                      latitude
+                      longitude
+                      name
+                      phone
+                      province
+                      provinceCode
+                      zip
                     }
-                  }
-                  lineItems(first: 250) {
-                    edges {
-                      node {
-                        id
-                        title
-                        quantity
-                        product {
-                          id
-                          title
-                          handle
+                    cancelReason
+                    cancelledAt
+                    closed
+                    closedAt
+                    createdAt
+                    currencyCode
+                    currentSubtotalLineItemsQuantity
+                    customAttributes {
+                      key
+                      value
+                    }
+                    customer {
+                      id
+                      acceptsMarketing
+                      email
+                      firstName
+                      lastName
+                      phone
+                      tags
+                    }
+                    customerLocale
+                    discountApplications(first: 10) {
+                      edges {
+                        node {
+                          allocationMethod
+                          targetType
+                          value
                         }
                       }
                     }
-                  }
-                  name
-                  note
-                  phone
-                  processedAt
-                  shippingAddress {
-                    id
-                    address1
-                    address2
-                    city
-                    company
-                    country
-                    countryCode
-                    countryCodeV2
-                    firstName
-                    lastName
-                    latitude
-                    longitude
+                    displayFinancialStatus
+                    displayFulfillmentStatus
+                    email
+                    lineItems(first: 250) {
+                      edges {
+                        node {
+                          id
+                          title
+                          quantity
+                          product {
+                            id
+                            title
+                            handle
+                          }
+                        }
+                      }
+                    }
                     name
+                    note
+                    originalTotalPriceSet {
+                      shopMoney {
+                        amount
+                        currencyCode
+                      }
+                      presentmentMoney {
+                        amount
+                        currencyCode
+                      }
+                    }
+                    paymentGatewayNames
                     phone
-                    province
-                    provinceCode
-                    zip
+                    processedAt
+                    shippingAddress {
+                      id
+                      address1
+                      address2
+                      city
+                      company
+                      country
+                      countryCode
+                      countryCodeV2
+                      firstName
+                      lastName
+                      latitude
+                      longitude
+                      name
+                      phone
+                      province
+                      provinceCode
+                      zip
+                    }
+                    subtotalPrice
+                    tags
+                    taxLines {
+                      price
+                      rate
+                      title
+                    }
+                    totalPrice
+                    totalRefunded
+                    transactions(first: 10) {
+                      id
+                      amountSet {
+                        shopMoney {
+                          amount
+                          currencyCode
+                        }
+                        presentmentMoney {
+                          amount
+                          currencyCode
+                        }
+                      }
+                      gateway
+                      kind
+                      status
+                      createdAt
+                      fees {
+                        amount {
+                          amount
+                          currencyCode
+                        }
+                        rate
+                        type
+                      }
+                    }
+                    updatedAt
                   }
-                  subtotalPrice
-                  tags
-                  taxLines {
-                    price
-                    rate
-                    title
-                  }
-                  totalPrice
-                  totalRefunded
-                  updatedAt
                 }
               }
             }
-          }
         `;
         const orders = await this.fetchGraphQL(shop, token, query);
         return orders;
