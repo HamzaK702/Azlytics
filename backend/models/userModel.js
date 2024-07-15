@@ -1,3 +1,4 @@
+
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
@@ -10,26 +11,17 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  password: {
+  uid: {
     type: String,
-    required: function() {
-      return !this.facebookId && !this.googleId; // Password is required only if not using Facebook or Google login
-    }
-  },
-  facebookId: {
-    type: String,
+    required: true,
     unique: true,
     sparse: true // Allows multiple documents without this field to be indexed
   },
-  googleId: {
-    type: String,
-    unique: true,
-    sparse: true // Allows multiple documents without this field to be indexed
+  shopifyConnected: {
+    type: Boolean,
+    required: true,
+    default: false,
   },
-  profilePicture: {
-    type: String
-  },
-  // Add any other fields you need
 });
 
 const User = mongoose.model('User', userSchema);

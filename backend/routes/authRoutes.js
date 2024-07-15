@@ -1,16 +1,16 @@
-// import express from 'express';
-// import passport from '../config/passportConfig.js';
-// import authController from '../controllers/authController.js';
+// Import necessary modules
+import express from 'express';
+import authController from '../controllers/authController.js';
 
-// const router = express.Router();
+const router = express.Router();
 
-// router.post('/register', authController.register);
-// router.post('/login', authController.login);
+// Register route for Firebase-authenticated users
+router.post('/register', authController.registerFirebaseUser);
 
-// router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-// router.get('/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/login' }), authController.facebookCallback);
+// Login route for Firebase-authenticated users
+router.post('/login', authController.loginFirebaseUser);
 
-// router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-// router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), authController.googleCallback);
+// Route to verify the token
+router.get('/authenticate', authController.authenticate);
 
-// export default router;
+export default router;

@@ -8,7 +8,8 @@ router.get('/shopify', (req, res) => {
     if (shop) {
         const state = ShopifyController.nonce();
         const installUrl = ShopifyController.generateInstallUrl(shop, state);
-
+        console.log(state)
+        console.log(installUrl)
         res.cookie('state', state);
         res.redirect(installUrl);
     } else {
@@ -16,7 +17,8 @@ router.get('/shopify', (req, res) => {
     }
 });
 
-router.get('/shopify/callback', ShopifyController.handleAuth); //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c
+router.get('/shopify/callback', ShopifyController.handleAuth); //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c 
+// new updated token with customer fields --> shpua_9dd90273c982021d4c9bed11b7bc6e6c
 router.get('/shopdata', ShopifyController.getShopData);
 
 router.get('/shopify/orders', ShopifyController.getOrders);

@@ -15,6 +15,7 @@ export class ShopifyController {
         if (shop && hmac && code) {
             try {
                 const accessToken = await ShopifyService.getAccessToken(shop, code);
+                console.log(shop, hmac, code)
                 console.log("We recieved a token:" + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
                 

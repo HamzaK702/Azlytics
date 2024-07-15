@@ -1,42 +1,49 @@
-// import User from '../models/userModel.js';
-// import bcrypt from 'bcryptjs';
-// import jwt from 'jsonwebtoken';
 
-// const register = async (userData) => {
-//   const { name, email, password, role } = userData;
-//   const existingUser = await User.findOne({ email });
+// Import necessary modules
+import User from '../models/userModel.js';
+import jwt from 'jsonwebtoken';
 
-//   if (existingUser) {
-//     throw new Error('User already exists');
-//   }
+// Function to store user data in the database and return an access token
+const registerFirebaseUser = async (userData) => {
+  const { name, email, uid } = userData;
+  const existingUser = await User.findOne({ email });
 
-//   const hashedPassword = await bcrypt.hash(password, 10);
-//   const newUser = new User({ name, email, password: hashedPassword, role });
-//   await newUser.save();
+  if (existingUser) {
+    throw new Error('User already exists');
+  }
 
-//   return newUser;
-// };
+  const newUser = new User({ name, email, uid });
+  await newUser.save();
 
-// const login = async (email, password) => {
-//   const user = await User.findOne({ email });
+  const token = jwt.sign({ id: newUser._id, role: newUser.role }, process.env.JWT_SECRET, {
+    expiresIn: '1d', // Set token expiration to 1 day
+  });
 
-//   if (!user || !(await bcrypt.compare(password, user.password))) {
-//     throw new Error('Invalid email or password');
-//   }
+  return { user: newUser, token };
+};
 
-//   const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-//     expiresIn: '1h',
-//   });
+// Function to log in a Firebase-authenticated user and return an access token
+const loginFirebaseUser = async (uid) => {
+  const user = await User.findOne({ uid });
 
-//   return { user, token };
-// };
+  if (!user) {
+    throw new Error('User not found');
+  }
 
-// const authenticate = (token) => {
-//   try {
-//     return jwt.verify(token, process.env.JWT_SECRET);
-//   } catch (error) {
-//     throw new Error('Invalid token');
-//   }
-// };
+  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: '1d', // Set token expiration to 1 day
+  });
 
-// export default { register, login, authenticate };
+  return { user, token };
+};
+
+// Authenticate function to verify the token
+const authenticate = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch (error) {
+    throw new Error('Invalid token');
+  }
+};
+
+export default { registerFirebaseUser, loginFirebaseUser, authenticate };
