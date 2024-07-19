@@ -40,7 +40,7 @@ export class ShopifyService {
             body: JSON.stringify({ query })
         });
         const data = await response.json();
-        console.log(data)
+        console.log(data);
         return data;
     }
 
@@ -194,94 +194,86 @@ export class ShopifyService {
         const orders = await this.fetchGraphQL(shop, token, query);
         return orders;
     }
-    
-    
 
-      static async getProducts(shop, token) {
+    static async getProducts(shop, token) {
         const query = `
-          {
-            products(first: 10) {
-              edges {
-                node {
-                  id
-                  adminGraphqlApiId
-                  availableForSale
-                  createdAt
-                  description
-                  descriptionHtml
-                  onlineStoreUrl
-                  options {
-                    id
-                    name
-                    values
-                  }
-                  productType
-                  publishedAt
-                  seo {
-                    description
-                    title
-                  }
-                  status
-                  tags
-                  title
-                  totalInventory
-                  updatedAt
-                  variants(first: 250) { # Increased limit to potentially get all variants
+            {
+                products(first: 10) {
                     edges {
-                      node {
-                        compareAtPrice
-                        displayName
-                        image {
-                          id
-                          originalSrc
-                          transformedSrc
-                        }
-                        inventoryItem {
-                          id
-                          inventoryLevels(first: 250) { # Increased limit to potentially get all levels
-                            edges {
-                              node {
-                                available
-                                location {
-                                  id
-                                  name
-                                }
-                              }
+                        node {
+                            id
+                            status
+                            createdAt
+                            description
+                            descriptionHtml
+                            onlineStoreUrl
+                            options {
+                                id
+                                name
+                                values
                             }
-                          }
-                          inventoryQuantity
+                            productType
+                            publishedAt
+                            seo {
+                                description
+                                title
+                            }
+                            status
+                            tags
+                            title
+                            totalInventory
+                            updatedAt
+                            variants(first: 250) { # Increased limit to potentially get all variants
+                                edges {
+                                    node {
+                                        compareAtPrice
+                                        displayName
+                                        image {
+                                            id
+                                            originalSrc
+                                            transformedSrc
+                                        }
+                                        inventoryItem {
+                                            id
+                                            inventoryLevels(first: 250) { # Increased limit to potentially get all levels
+                                                edges {
+                                                    node {
+                                                        available
+                                                        location {
+                                                            id
+                                                            name
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        legacyResourceId
+                                        price
+                                        product {
+                                            id
+                                        }
+                                        requiresShipping
+                                        selectedOptions {
+                                            name
+                                            value
+                                        }
+                                        sku
+                                        taxCode
+                                        taxable
+                                        title
+                                        updatedAt
+                                        weight
+                                        weightUnit
+                                    }
+                                }
+                            }
                         }
-                        legacyResourceId
-                        price
-                        product {
-                          id
-                        }
-                        quantityAvailable
-                        requiresShipping
-                        selectedOptions {
-                          name
-                          value
-                        }
-                        sku
-                        taxCode
-                        taxable
-                        title
-                        updatedAt
-                        weight
-                        weightUnit
-                        vendor {
-                          # Add specific vendor fields you need here
-                        }
-                      }
                     }
-                  }
                 }
-              }
             }
-          }
         `;
-        const products =  await this.fetchGraphQL(shop, token, query)
+        const products = await this.fetchGraphQL(shop, token, query);
         console.log(products);
         return products;
-      }
-    }      
+    }
+}

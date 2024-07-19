@@ -83,6 +83,25 @@ export class ShopifyController {
         }
     }
 
+    static async createBulkOperation(req, res) {
+        const { shop, token, query } = req.body;
+        
+        if (!shop || !token || !query) {
+            return res.status(400).json({ error: 'Missing required fields: shop, token, or query' });
+        }
+
+        try {
+            const response = await ShopifyService.runBulkOperation(shop, token, query);
+            if (response.errors) {
+                return res.status(400).json({ errors: response.errors });
+            }
+            return res.status(200).json(response.data.bulkOperationRunQuery);
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Internal Server Error' });
+        }
+    }
+
 
 }
 

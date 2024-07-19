@@ -24,5 +24,7 @@ router.get('/shopdata', ShopifyController.getShopData);
 router.get('/shopify/orders', ShopifyController.getOrders);
 router.get('/shopify/products', ShopifyController.getProducts);
 
+router.post('/bulk-operation', ShopifyController.createBulkOperation);
+
 
 export default router;

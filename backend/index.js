@@ -10,6 +10,7 @@ import authRoutes from "./routes/authRoutes.js";
 import shopifyRouter from "./routes/shopifyRoute.js"
 import cookieParser from 'cookie-parser';
 import './config/passportConfig.js'; 
+import bulkRoutes from  './routes/bulkRoutes.js';
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -45,6 +46,8 @@ app.get('/hello', (req, res) => {
 /* ROUTES */
 app.use("/api", authRoutes);
 app.use('/api', shopifyRouter);
+app.use('/bulk', bulkRoutes);
+
 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;
