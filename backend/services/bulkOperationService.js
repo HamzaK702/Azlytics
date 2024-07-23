@@ -92,7 +92,7 @@ export class BulkOperationService {
     static async fetchBulkOperationResults(url) {
         const response = await fetch(url);
         const contentType = response.headers.get('content-type');
-        if (contentType && contentType.indexOf('application/json') !== -1 || contentType.indexOf('text/plain') !== -1) {
+        if (contentType && (contentType.indexOf('application/json') !== -1 || contentType.indexOf('text/plain') !== -1)) {
             const data = await response.text(); // JSONL is plain text
             return data.split('\n').filter(line => line).map(line => JSON.parse(line));
         } else {
@@ -100,6 +100,103 @@ export class BulkOperationService {
             console.error('Non-JSON response received:', text);
             throw new Error('Unexpected response format');
         }
+    }
+
+    static get customerQuery() {
+        return `
+            {
+                customers {
+                    edges {
+                        node {
+                            id
+                            addresses {
+                                id
+                                address1
+                                address2
+                                city
+                                company
+                                country
+                                countryCode
+                                countryCodeV2
+                                firstName
+                                lastName
+                                latitude
+                                longitude
+                                name
+                                phone
+                                province
+                                provinceCode
+                                zip
+                            }
+                            createdAt
+                            updatedAt
+                            displayName
+                            email
+                            firstName
+                            lastName
+                            phone
+                            lastOrder {
+                                id
+                                name
+                                totalPrice
+                                currencyCode
+                                processedAt
+                                fulfillmentStatus
+                            }
+                            note
+                            orders {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        totalPrice
+                                        currencyCode
+                                        processedAt
+                                        fulfillmentStatus
+                                        lineItems {
+                                            edges {
+                                                node {
+                                                    id
+                                                    title
+                                                    quantity
+                                                    price
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            defaultAddress {
+                                id
+                                address1
+                                address2
+                                city
+                                company
+                                country
+                                countryCode
+                                countryCodeV2
+                                firstName
+                                lastName
+                                latitude
+                                longitude
+                                name
+                                phone
+                                province
+                                provinceCode
+                                zip
+                            }
+                            state
+                            tags
+                            totalSpent
+                            numberOfOrders
+                            verifiedEmail
+                            createdAt
+                            updatedAt
+                        }
+                    }
+                }
+            }
+        `;
     }
 
     static get productQuery() {
@@ -174,6 +271,155 @@ export class BulkOperationService {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        `;
+    }
+
+    static get orderQuery() {
+        return `
+            {
+                orders {
+                    edges {
+                        node {
+                            id
+                            billingAddress {
+                                id
+                                address1
+                                address2
+                                city
+                                company
+                                country
+                                countryCode
+                                countryCodeV2
+                                firstName
+                                lastName
+                                latitude
+                                longitude
+                                name
+                                phone
+                                province
+                                provinceCode
+                                zip
+                            }
+                            cancelReason
+                            cancelledAt
+                            closed
+                            closedAt
+                            createdAt
+                            currencyCode
+                            currentSubtotalLineItemsQuantity
+                            customAttributes {
+                                key
+                                value
+                            }
+                            customer {
+                                id
+                                acceptsMarketing
+                                email
+                                firstName
+                                lastName
+                                phone
+                                tags
+                            }
+                            customerLocale
+                            discountApplications {
+                                edges {
+                                    node {
+                                        allocationMethod
+                                        targetType
+                                        value
+                                    }
+                                }
+                            }
+                            displayFinancialStatus
+                            displayFulfillmentStatus
+                            email
+                            lineItems {
+                                edges {
+                                    node {
+                                        id
+                                        title
+                                        quantity
+                                        product {
+                                            id
+                                            title
+                                            handle
+                                        }
+                                    }
+                                }
+                            }
+                            name
+                            note
+                            originalTotalPriceSet {
+                                shopMoney {
+                                    amount
+                                    currencyCode
+                                }
+                                presentmentMoney {
+                                    amount
+                                    currencyCode
+                                }
+                            }
+                            paymentGatewayNames
+                            phone
+                            processedAt
+                            shippingAddress {
+                                id
+                                address1
+                                address2
+                                city
+                                company
+                                country
+                                countryCode
+                                countryCodeV2
+                                firstName
+                                lastName
+                                latitude
+                                longitude
+                                name
+                                phone
+                                province
+                                provinceCode
+                                zip
+                            }
+                            subtotalPrice
+                            tags
+                            taxLines {
+                                price
+                                rate
+                                title
+                            }
+                            totalPrice
+                            totalRefunded
+                            transactions {
+                                id
+                                amountSet {
+                                    shopMoney {
+                                        amount
+                                        currencyCode
+                                    }
+                                    presentmentMoney {
+                                        amount
+                                        currencyCode
+                                    }
+                                }
+                                gateway
+                                kind
+                                status
+                                createdAt
+                                fees {
+                                    amount {
+                                        amount
+                                        currencyCode
+                                    }
+                                    rate
+                                    type
+                                }
+                            }
+                            updatedAt
                         }
                     }
                 }

@@ -1,12 +1,35 @@
+
 import { BulkOperationService } from "../services/bulkOperationService.js";
 
-export const startBulkOperation = async (req, res) => {
+export const startProductBulkOperation = async (req, res) => {
     const { shop, token } = req.body;
     try {
         const bulkOperation = await BulkOperationService.runBulkOperation(shop, token, BulkOperationService.productQuery);
         res.json(bulkOperation);
     } catch (error) {
-        console.error('Error starting bulk operation:', error.message);
+        console.error('Error starting product bulk operation:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const startOrderBulkOperation = async (req, res) => {
+    const { shop, token } = req.body;
+    try {
+        const bulkOperation = await BulkOperationService.runBulkOperation(shop, token, BulkOperationService.orderQuery);
+        res.json(bulkOperation);
+    } catch (error) {
+        console.error('Error starting order bulk operation:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const startCustomerBulkOperation = async (req, res) => {
+    const { shop, token } = req.body;
+    try {
+        const bulkOperation = await BulkOperationService.runBulkOperation(shop, token, BulkOperationService.customerQuery);
+        res.json(bulkOperation);
+    } catch (error) {
+        console.error('Error starting customer bulk operation:', error.message);
         res.status(500).json({ error: error.message });
     }
 };
