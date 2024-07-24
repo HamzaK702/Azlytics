@@ -1,5 +1,7 @@
+
 import { ShopifyService } from '../services/ShopifyService.js';
 import dotenv from 'dotenv';
+import { eventEmitter } from '../services/bulkOperationPipeline.js'; // Import event emitter
 
 dotenv.config();
 
@@ -16,9 +18,12 @@ export class ShopifyController {
             try {
                 const accessToken = await ShopifyService.getAccessToken(shop, code);
                 console.log(shop, hmac, code)
-                console.log("We recieved a token:" + accessToken)
+                console.log("We received a token: " + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
-                
+
+                // Emit an event with shop and token
+                eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
+
             } catch (error) {
                 res.status(500).send('Error getting Shopify access token: ' + error.message);
             }
@@ -75,7 +80,6 @@ export class ShopifyController {
         }
     
         try {
-           
             const productsData = await ShopifyService.getProducts(shop, token);
             res.status(200).json(productsData.data);
         } catch (error) {
@@ -101,8 +105,4 @@ export class ShopifyController {
             return res.status(500).json({ error: 'Internal Server Error' });
         }
     }
-
-
 }
-
-//we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c
