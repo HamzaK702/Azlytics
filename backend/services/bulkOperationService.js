@@ -50,7 +50,7 @@ export class BulkOperationService {
     static async pollBulkOperationStatus(shop, token, bulkOperationId) {
         const query = `
             query {
-                node(id: "gid://shopify/BulkOperation/${bulkOperationId}") {
+                node(id: "${bulkOperationId}") {
                     ... on BulkOperation {
                         status
                         errorCode
@@ -79,6 +79,7 @@ export class BulkOperationService {
             const data = await response.json();
             console.log('Full response from Shopify API:', data);
             if (!data || !data.data || !data.data.node) {
+               
                 throw new Error('Invalid response from Shopify API');
             }
             return data.data.node;
@@ -141,7 +142,6 @@ export class BulkOperationService {
                                 totalPrice
                                 currencyCode
                                 processedAt
-                                fulfillmentStatus
                             }
                             note
                             orders {
@@ -152,14 +152,12 @@ export class BulkOperationService {
                                         totalPrice
                                         currencyCode
                                         processedAt
-                                        fulfillmentStatus
                                         lineItems {
                                             edges {
                                                 node {
                                                     id
                                                     title
                                                     quantity
-                                                    price
                                                 }
                                             }
                                         }
@@ -187,7 +185,6 @@ export class BulkOperationService {
                             }
                             state
                             tags
-                            totalSpent
                             numberOfOrders
                             verifiedEmail
                             createdAt
