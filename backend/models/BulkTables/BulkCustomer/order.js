@@ -1,4 +1,6 @@
+
 import mongoose from 'mongoose';
+import lineItemSchema from './lineItem.js';
 const { Schema } = mongoose;
 
 const orderSchema = new Schema({
@@ -7,8 +9,7 @@ const orderSchema = new Schema({
   totalPrice: String,
   currencyCode: String,
   processedAt: Date,
-  __parentId: String,
+  lineItems: [lineItemSchema], 
 });
 
-const Order = mongoose.model('Order', orderSchema);
-export default Order;
+export default orderSchema;

@@ -1,6 +1,7 @@
 
 import mongoose from 'mongoose';
 import addressSchema from './address.js';
+import orderSchema from './order.js';
 const { Schema } = mongoose;
 
 const customerSchema = new Schema({
@@ -20,6 +21,7 @@ const customerSchema = new Schema({
   tags: [String],
   numberOfOrders: String,
   verifiedEmail: Boolean,
+  orders: [orderSchema],
 });
 
 const Customer = mongoose.model('Customer', customerSchema);

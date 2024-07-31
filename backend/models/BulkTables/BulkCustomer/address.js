@@ -19,6 +19,9 @@ const addressSchema = new Schema({
   province: String,
   provinceCode: String,
   zip: String,
+  
 });
+
+
 
 export default addressSchema;
