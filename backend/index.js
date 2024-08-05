@@ -11,7 +11,8 @@ import shopifyRouter from "./routes/shopifyRoute.js"
 import cookieParser from 'cookie-parser';
 import './config/passportConfig.js'; 
 import bulkRoutes from  './routes/bulkRoutes.js';
-import salesService from "./services/salesService.js";
+import ordersRoutes from './routes/ordersRoutes.js';
+import salesRoutes from './routes/salesRoutes.js';
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -44,30 +45,21 @@ app.get('/hello', (req, res) => {
   res.send('Hello, Login Success ');
 });
 
-app.get('/sales-trends', async (req, res) => {
-  try {
-    const salesTrends = await salesService.getSalesTrends();
-    res.send(res.json(salesTrends));
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
-app.get('/get-aov', async (req, res) => {
-  try {
-    const salesTrends = await salesService.getAOV();
-    res.send(res.json(salesTrends));
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 /* ROUTES */
 app.use("/api", authRoutes);
 app.use('/api', shopifyRouter);
 app.use('/bulk', bulkRoutes);
+app.use('/api', ordersRoutes);
+app.use('/api' , salesRoutes );
+
+
+
+
+
 
 
 /* DATABASE CONNECTION AND SERVER SETUP */
