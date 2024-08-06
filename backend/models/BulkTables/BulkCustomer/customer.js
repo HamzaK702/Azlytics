@@ -22,6 +22,8 @@ const customerSchema = new Schema({
   numberOfOrders: String,
   verifiedEmail: Boolean,
   orders: [orderSchema],
+  userShopId: { type: Schema.Types.ObjectId, ref: 'UserShop' }, 
+  shopName: String
 });
 
 const Customer = mongoose.model('Customer', customerSchema);

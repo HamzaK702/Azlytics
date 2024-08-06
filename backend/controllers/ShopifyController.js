@@ -2,7 +2,10 @@
 import { ShopifyService } from '../services/ShopifyService.js';
 import dotenv from 'dotenv';
 import { eventEmitter } from '../services/bulkOperationPipeline.js'; // Import event emitter
-
+import UserShop from "../models/userShopModel.js";
+import Customer from "../models/BulkTables/BulkCustomer/customer.js";
+import Order from "../models/BulkTables/BulkOrder/order.js";
+import Product from "../models/BulkTables/BulkProduct/product.js";
 dotenv.config();
 
 export class ShopifyController {
@@ -20,6 +23,33 @@ export class ShopifyController {
                 console.log(shop, hmac, code)
                 console.log("We received a token: " + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
+
+                const userId = req.user._id;
+                const userShop= new UserShop({userId , shop , token:accessToken});
+                await userShop.save();
+                console.log("UserShop entry created:" , UserShop);
+
+                const userShopId = userShop._id;
+                const shopName = shop;
+
+                // Update Customer documents
+                await Customer.updateMany(
+                    { "orders.shop": shop },
+                    { $set: { userShopId, shopName } }
+                );
+
+                // Update Order documents
+                await Order.updateMany(
+                    { shop },
+                    { $set: { userShopId, shopName } }
+                );
+
+                // Update Product documents
+                await Product.updateMany(
+                    { shop },
+                    { $set: { userShopId, shopName } }
+                );
+
 
                 // Emit an event with shop and token
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });

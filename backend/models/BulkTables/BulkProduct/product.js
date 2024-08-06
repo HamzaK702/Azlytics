@@ -52,7 +52,9 @@ const ProductSchema = new Schema({
   title: { type: String },
   totalInventory: { type: Number },
   updatedAt: { type: Date },
-  variants: [ProductVariantSchema]
+  variants: [ProductVariantSchema],
+  userShopId: { type: Schema.Types.ObjectId, ref: 'UserShop' },  
+  shopName: String
 }, { strict: false });
 
 const Product = mongoose.model('Product', ProductSchema);

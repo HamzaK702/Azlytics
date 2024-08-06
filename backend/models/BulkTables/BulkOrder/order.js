@@ -34,6 +34,8 @@ const orderSchema = new Schema({
   transactions: [Schema.Types.Mixed],
   updatedAt: Date,
   lineItems: [lineItemSchema],
+  userShopId: { type: Schema.Types.ObjectId, ref: 'UserShop' },  
+  shopName: String 
 });
 
 const Order = mongoose.model('Order', orderSchema);

@@ -1,5 +1,6 @@
 import Order from "./../models/BulkTables/BulkOrder/order.js";
 import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
+import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
 
 // Aggregates total sales by date
 const aggregateTotalSales = () => {
@@ -157,7 +158,105 @@ const getAOV = async () => {
   });
 };
 
+const getTopCities = async () => {
+  try {
+    const orders = await Order.find({}, 'createdAt customer.id shippingAddress.city').populate('customer.id', 'createdAt numberOfOrders');
+    const customerData = await Customer.find({}, 'id createdAt numberOfOrders');
+   
+
+    const cityData = {
+      newCustomers: {},
+      returningCustomers: {},
+    };
+
+    orders.forEach(order => {
+      if (!order.customer || !order.customer.id) return; 
+
+      const customer = customerData.find(c => c.id === order.customer.id);
+      console.log("customer check" , customer);
+
+
+      if (customer) {
+        const isNewCustomer = customer.numberOfOrders === '1'; // Adjust based on your numberOfOrders field type
+        const city = order.shippingAddress.city;
+
+        if (isNewCustomer) {
+          if (!cityData.newCustomers[city]) cityData.newCustomers[city] = 0;
+          cityData.newCustomers[city]++;
+        } else {
+          if (!cityData.returningCustomers[city]) cityData.returningCustomers[city] = 0;
+          cityData.returningCustomers[city]++;
+        }
+      }
+    });
+
+    const rankedNewCustomers = Object.entries(cityData.newCustomers)
+      .sort((a, b) => b[1] - a[1])
+      .map(([city, count]) => ({ city, count }));
+
+    const rankedReturningCustomers = Object.entries(cityData.returningCustomers)
+      .sort((a, b) => b[1] - a[1])
+      .map(([city, count]) => ({ city, count }));
+
+    return { rankedNewCustomers, rankedReturningCustomers };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+const getTopSKUs = async () => {
+  try {
+  
+    const orders = await Order.find({}, 'id createdAt customer.id');
+
+    const lineItems = await LineItem.find({}, 'id quantity product __parentId');
+   
+    const customers = await Customer.find({}, 'id createdAt numberOfOrders');
+
+    const skuData = {
+      newCustomers: {},
+      returningCustomers: {},
+    };
+
+    orders.forEach(order => {
+      const customer = customers.find(c => c.id === order.customer.id);
+      if (!customer) return;
+
+      const isNewCustomer = customer.numberOfOrders === '1';
+      const orderLineItems = lineItems.filter(item => item.__parentId === order.id);
+
+      orderLineItems.forEach(item => {
+        const sku = item.product.sku;
+        const quantity = item.quantity;
+
+        if (isNewCustomer) {
+          if (!skuData.newCustomers[sku]) skuData.newCustomers[sku] = 0;
+          skuData.newCustomers[sku] += quantity;
+        } else {
+          if (!skuData.returningCustomers[sku]) skuData.returningCustomers[sku] = 0;
+          skuData.returningCustomers[sku] += quantity;
+        }
+      });
+    });
+
+    const rankedNewCustomers = Object.entries(skuData.newCustomers)
+      .sort((a, b) => b[1] - a[1])
+      .map(([sku, quantity]) => ({ sku, quantity }));
+
+    const rankedReturningCustomers = Object.entries(skuData.returningCustomers)
+      .sort((a, b) => b[1] - a[1])
+      .map(([sku, quantity]) => ({ sku, quantity }));
+
+    return { rankedNewCustomers, rankedReturningCustomers };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+
 export default {
   getSalesTrends,
-  getAOV
+  getAOV,
+  getTopCities,
+  getTopSKUs
 };
