@@ -3,7 +3,7 @@ import Customer from '../models/BulkTables/BulkCustomer/customer.js';
 import Order from '../models/BulkTables/BulkOrder/order.js';
 import Product from '../models/BulkTables/BulkProduct/product.js';
 
-export const saveCustomerData = async (bulkData) => {
+export const saveCustomerData = async (bulkData , userShopId , shopName ) => {
   try {
     for (const item of bulkData) {
       if (item.id.startsWith('gid://shopify/Customer')) {
@@ -12,10 +12,12 @@ export const saveCustomerData = async (bulkData) => {
 
         // If customer doesn't exist, create a new one
         if (!customer) {
-          customer = new Customer(item);
+          customer = new Customer({...item , userShopId , shopName});
         } else {
           // If customer exists, update it
           Object.assign(customer, item);
+          customer.userShopId = userShopId;
+          customer.shopName = shopName;
         }
 
         // Save the customer
@@ -57,7 +59,7 @@ export const saveCustomerData = async (bulkData) => {
   }
 }
  
-export const saveOrderData = async (bulkData) => {
+export const saveOrderData = async (bulkData , userShopId , shopName ) => {
     try {
       for (const item of bulkData) {
         if (!item || !item.id) {
@@ -70,10 +72,12 @@ export const saveOrderData = async (bulkData) => {
   
           // If order doesn't exist, create a new one
           if (!order) {
-            order = new Order(item);
+            order = new Order({...item , userShopId , shopName});
           } else {
             // If order exists, update it
             Object.assign(order, item);
+            order.userShopId = userShopId;
+          order.shopName = shopName;
           }
   
           // Save the order
@@ -103,7 +107,7 @@ export const saveOrderData = async (bulkData) => {
     }
   };
   
-  export const saveProductData = async (bulkData) => {
+  export const saveProductData = async (bulkData , userShopId , shopName ) => {
     try {
       for (const item of bulkData) {
         if (item && item.id && item.id.startsWith('gid://shopify/Product')) {
@@ -112,10 +116,12 @@ export const saveOrderData = async (bulkData) => {
   
           // If product doesn't exist, create a new one
           if (!product) {
-            product = new Product(item);
+            product = new Product({...item , userShopId , shopName});
           } else {
             // If product exists, update it
             Object.assign(product, item);
+            product.userShopId = userShopId;
+          product.shopName = shopName;
           }
   
           // Save the product

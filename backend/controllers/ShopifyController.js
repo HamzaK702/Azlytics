@@ -28,29 +28,7 @@ export class ShopifyController {
                 const userShop= new UserShop({userId , shop , token:accessToken});
                 await userShop.save();
                 console.log("UserShop entry created:" , UserShop);
-
-                const userShopId = userShop._id;
-                const shopName = shop;
-
-                // Update Customer documents
-                await Customer.updateMany(
-                    { "orders.shop": shop },
-                    { $set: { userShopId, shopName } }
-                );
-
-                // Update Order documents
-                await Order.updateMany(
-                    { shop },
-                    { $set: { userShopId, shopName } }
-                );
-
-                // Update Product documents
-                await Product.updateMany(
-                    { shop },
-                    { $set: { userShopId, shopName } }
-                );
-
-
+        
                 // Emit an event with shop and token
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
 

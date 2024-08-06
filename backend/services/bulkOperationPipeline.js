@@ -2,11 +2,12 @@
 import { BulkOperationService } from "../services/bulkOperationService.js";
 import { saveCustomerData, saveOrderData, saveProductData  } from './dataProcessingService.js';
 import EventEmitter from 'events';
+import userShop from "../models/userShopModel.js";
 
 const POLLING_INTERVAL = 5000;
 export const eventEmitter = new EventEmitter();
 
-const createAndCheckBulkOperations = async (shop, token) => {
+const createAndCheckBulkOperations = async (shop, token , userShopId) => {
     try {
         console.log('Starting product bulk operation...');
         const productBulkOperation = await BulkOperationService.runBulkOperation(shop, token, BulkOperationService.productQuery);
@@ -52,15 +53,15 @@ const createAndCheckBulkOperations = async (shop, token) => {
                     bulkOperations.splice(bulkOperations.indexOf(operation), 1);
 
                     if (operation.type === 'product') {
-                        await saveProductData(results);
+                        await saveProductData(results , userShopId , shop);
                     }
 
                     if (operation.type === 'order') {
-                        await saveOrderData(results);
+                        await saveOrderData(results , userShopId , shop);
                       }
 
                     if (operation.type === 'customer') {
-                        await saveCustomerData(results);
+                        await saveCustomerData(results , userShopId , shop);
                       }
 
 
@@ -84,7 +85,7 @@ const createAndCheckBulkOperations = async (shop, token) => {
 };
 
 eventEmitter.on('shopAuthSuccess', ({ shop, accessToken }) => {
-    createAndCheckBulkOperations(shop, accessToken);
+    createAndCheckBulkOperations(shop, accessToken ,userShop._id );
 });
 
 export default createAndCheckBulkOperations;
