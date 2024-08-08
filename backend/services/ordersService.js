@@ -1,7 +1,7 @@
 import Order from "../models/BulkTables/BulkOrder/order.js";
 import Customer from "../models/BulkTables/BulkCustomer/customer.js"
 
-const getOrdersTrend = async () => {
+export const getOrdersTrend = async () => {
   try {
     // Fetch all orders and customers
     const orders = await Order.find();
@@ -54,4 +54,153 @@ const getOrdersTrend = async () => {
   }
 };
 
-export default getOrdersTrend;
+
+export const calculateOrderTimeDifferences = async () => {
+  try {
+    const orders = await Order.aggregate([
+      // Sort orders by customer id and createdAt
+      { $sort: { 'customer.id': 1, createdAt: 1 } },
+
+      // Group by customer id and push orders into an array
+      {
+        $group: {
+          _id: '$customer.id',
+          orders: {
+            $push: {
+              createdAt: '$createdAt'
+            }
+          }
+        }
+      },
+
+      // Filter out customers with only one order
+      { $match: { "orders.1": { $exists: true } } }, // Ensures at least 2 orders exist
+
+      // Project to add sequence numbers and calculate time differences
+      {
+        $project: {
+          orders: {
+            $map: {
+              input: { $range: [0, { $subtract: [{ $size: "$orders" }, 1] }] }, // Create an array [0, 1, 2, ...]
+              as: "index",
+              in: {
+                orderSequence: { $add: ["$$index", 2] }, // Sequence starts from 2
+                createdAt: { $arrayElemAt: ["$orders.createdAt", { $add: ["$$index", 1] }] },
+                previousOrderDate: { $arrayElemAt: ["$orders.createdAt", "$$index"] },
+                timeDifference: {
+                  $divide: [
+                    {
+                      $subtract: [
+                        { $arrayElemAt: ["$orders.createdAt", { $add: ["$$index", 1] }] },
+                        { $arrayElemAt: ["$orders.createdAt", "$$index"] }
+                      ]
+                    },
+                    1000 * 60 * 60 * 24 // Convert milliseconds to days
+                  ] // Time difference in days
+                }
+              }
+            }
+          }
+        }
+      },
+
+      // Unwind the orders array to process each order individually
+      { $unwind: "$orders" },
+
+      // Filter out the first orders as they don't have a previous order to compare
+      { $match: { "orders.orderSequence": { $gt: 1 } } },
+
+      // Group by order sequence and calculate mean and median time differences
+      {
+        $group: {
+          _id: '$orders.orderSequence',
+          meanTimeDifference: { $avg: '$orders.timeDifference' },
+          medianTimeDifference: { $avg: '$orders.timeDifference' } // Median calculation can be done differently if needed
+        }
+      },
+
+      // Filter to include only up to the 10th order
+      { $match: { _id: { $lte: 10 } } },
+
+      // Sort by order sequence number
+      { $sort: { _id: 1 } }
+    ]);
+
+    return orders;
+  } catch (error) {
+    console.error('Error calculating order time differences:', error);
+    throw error;
+  }
+};
+
+
+
+
+
+export const calculateAOV = async () => {
+  try {
+    const orders = await Order.aggregate([
+      // Sort orders by customer id and createdAt
+      { $sort: { 'customer.id': 1, createdAt: 1 } },
+
+      // Group by customer id, and push orders into an array
+      {
+        $group: {
+          _id: '$customer.id',
+          orders: {
+            $push: {
+              createdAt: '$createdAt',
+              totalPrice: { $toDouble: '$totalPrice' } // Convert totalPrice to double
+            }
+          }
+        }
+      },
+
+      // Project to add sequence numbers to each order
+      {
+        $project: {
+          orders: {
+            $map: {
+              input: { $range: [0, { $size: "$orders" }] }, // Create an array [0, 1, 2, ...]
+              as: "index",
+              in: {
+                sequenceNumber: { $add: ["$$index", 1] }, // Sequence starts from 1
+                createdAt: { $arrayElemAt: ["$orders.createdAt", "$$index"] },
+                totalPrice: { $arrayElemAt: ["$orders.totalPrice", "$$index"] }
+              }
+            }
+          }
+        }
+      },
+
+      // Unwind the orders array to process each order individually
+      { $unwind: "$orders" },
+
+      // Group by sequence number and calculate the average order value (AOV)
+      {
+        $group: {
+          _id: "$orders.sequenceNumber", // Group by sequence number
+          AOV: { $avg: "$orders.totalPrice" } // Calculate the average of totalPrice
+        }
+      },
+
+      // Filter to include only up to the 10th order sequence
+      { $match: { _id: { $lte: 10 } } },
+
+      // Sort by order sequence number
+      { $sort: { _id: 1 } }
+    ]);
+
+    return orders;
+  } catch (error) {
+    console.error('Error calculating AOV:', error);
+    throw error;
+  }
+};
+
+
+
+
+
+
+
