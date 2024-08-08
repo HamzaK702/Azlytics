@@ -115,7 +115,29 @@ export const calculateOrderTimeDifferences = async () => {
         $group: {
           _id: '$orders.orderSequence',
           meanTimeDifference: { $avg: '$orders.timeDifference' },
-          medianTimeDifference: { $avg: '$orders.timeDifference' } // Median calculation can be done differently if needed
+          allTimeDifferences: { $push: '$orders.timeDifference' }
+        }
+      },
+
+      // Add median calculation for each order sequence
+      {
+        $project: {
+          _id: 1,
+          meanTimeDifference: 1,
+          medianTimeDifference: {
+            $cond: {
+              if: { $eq: [{ $mod: [{ $size: "$allTimeDifferences" }, 2] }, 0] }, // If even number of elements
+              then: {
+                $avg: [
+                  { $arrayElemAt: ["$allTimeDifferences", { $divide: [{ $size: "$allTimeDifferences" }, 2] }] },
+                  { $arrayElemAt: ["$allTimeDifferences", { $subtract: [{ $divide: [{ $size: "$allTimeDifferences" }, 2] }, 1] }] }
+                ]
+              },
+              else: {
+                $arrayElemAt: ["$allTimeDifferences", { $floor: { $divide: [{ $size: "$allTimeDifferences" }, 2] } }]
+              }
+            }
+          }
         }
       },
 
