@@ -14,6 +14,7 @@ import bulkRoutes from  './routes/bulkRoutes.js';
 import ordersRoutes from './routes/ordersRoutes.js';
 import salesRoutes from './routes/salesRoutes.js';
 import retentionRoutes from "./routes/retentionRoutes.js"
+import customerAnalyticRoutes from "./routes/customerAnalyticRoutes.js";
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -57,6 +58,7 @@ app.use('/bulk', bulkRoutes);
 app.use('/api', ordersRoutes);
 app.use('/api' , salesRoutes );
 app.use('/api' , retentionRoutes);
+app.use('/api' , customerAnalyticRoutes);
 
 
 
