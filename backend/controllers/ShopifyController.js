@@ -20,8 +20,7 @@ export class ShopifyController {
                 console.log(shop, hmac, code)
                 console.log("We received a token: " + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
-
-                // Emit an event with shop and token
+               
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
 
             } catch (error) {

@@ -13,6 +13,10 @@ import './config/passportConfig.js';
 import bulkRoutes from  './routes/bulkRoutes.js';
 import Order from "./models/BulkTables/BulkOrder/order.js";
 import Customer from "./models/BulkTables/BulkCustomer/customer.js";
+import googleAdAuthRoutes from './routes/googleAdRoutes.js';
+import facebookRoutes from "./routes/facebookRoutes.js"
+
+
 /* CONFIGURATIONS */
 dotenv.config();
 
@@ -48,6 +52,8 @@ app.get('/hello', (req, res) => {
 app.use("/api", authRoutes);
 app.use('/api', shopifyRouter);
 app.use('/bulk', bulkRoutes);
+app.use('/api', googleAdAuthRoutes);
+app.use('/api', facebookRoutes);
 
 app.get('/orders-trend', async (req, res) => {
   try {
