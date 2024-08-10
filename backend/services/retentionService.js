@@ -1,6 +1,7 @@
 import Order from "../models/BulkTables/BulkOrder/order.js";
 import Customer from "../models/BulkTables/BulkCustomer/customer.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 export const calculateRepeatRateByCity = async () => {
   // Calculate total customers by city
@@ -260,95 +261,170 @@ export const calculateCustomerStickiness = async () => {
 
   export const getRetentionCurve = async () => {
     try {
-      const now = new Date();
-      const firstPurchase = await Order.aggregate([
+      const orders = await Order.aggregate([
         {
-          $group: {
-            _id: '$customer.id',
-            firstPurchaseDate: { $min: '$createdAt' }
+          $match: {
+            customer: { $ne: null } 
+          }
+        },
+        {
+          $sort: {
+            'customer.id': 1, 
+            createdAt: 1 
           }
         }
       ]);
   
-      // Step 2: Merge First Purchase Date Back to Orders Data
-      const ordersWithFirstPurchase = await Order.aggregate([
-        {
-          $lookup: {
-            from: 'orders',
-            localField: 'customer.id',
-            foreignField: 'customer.id',
-            as: 'customerOrders'
-          }
-        },
-        {
-          $unwind: '$customerOrders'
-        },
-        {
-          $group: {
-            _id: {
-              customerId: '$customer.id',
-              orderId: '$customerOrders._id'
-            },
-            firstPurchaseDate: { $first: '$customerOrders.firstPurchaseDate' },
-            orderDate: { $first: '$customerOrders.createdAt' },
-            orderSequence: { $sum: 1 }
-          }
-        },
-        {
-          $addFields: {
-            daysSinceFirstPurchase: {
-              $divide: [
-                { $subtract: ['$orderDate', '$firstPurchaseDate'] },
-                1000 * 60 * 60 * 24
-              ]
-            }
-          }
-        },
-        {
-          $group: {
-            _id: { customerId: '$_id.customerId', orderSequence: '$orderSequence' },
-            daysSinceFirstPurchase: { $first: '$daysSinceFirstPurchase' }
-          }
-        },
-        {
-          $group: {
-            _id: '$_id.orderSequence',
-            retentionData: {
-              $push: {
-                daysSinceFirstPurchase: '$daysSinceFirstPurchase',
-                count: { $sum: 1 }
-              }
-            }
-          }
-        }
-      ]);
+      if (orders.length === 0) return []; 
   
-      // Step 3: Calculate Retention Rates
-      const retentionRates = ordersWithFirstPurchase.map(data => {
-        const firstOrderCounts = ordersWithFirstPurchase.find(d => d._id === 1)?.retentionData.length || 0;
-        const retentionRates = data.retentionData.map(entry => ({
-          daysSinceFirstPurchase: entry.daysSinceFirstPurchase,
-          retentionRate: (entry.count / firstOrderCounts) * 100
-        }));
-        return {
-          orderSequence: data._id,
-          retentionRates
-        };
+      const firstPurchaseMap = new Map();
+      orders.forEach(order => {
+        const customerId = order.customer.id;
+        if (!firstPurchaseMap.has(customerId)) {
+          firstPurchaseMap.set(customerId, order.createdAt);
+        }
       });
   
-      return retentionRates;
+      const retentionData = [];
+      orders.forEach(order => {
+        const customerId = order.customer.id;
+        const firstPurchaseDate = firstPurchaseMap.get(customerId);
+        const daysSinceFirstPurchase = Math.floor((order.createdAt - firstPurchaseDate) / (1000 * 60 * 60 * 24)); 
+        const orderSequence = retentionData.filter(data => data.customerId === customerId).length + 1;
+  
+        retentionData.push({
+          customerId,
+          daysSinceFirstPurchase,
+          orderSequence,
+        });
+      });
+      const retentionRates = {};
+      const firstOrderCount = Array.from(firstPurchaseMap.keys()).length; 
+  
+      retentionData.forEach(data => {
+        const key = `${data.orderSequence}_${data.daysSinceFirstPurchase}`;
+        if (!retentionRates[key]) retentionRates[key] = 0;
+        retentionRates[key] += 1;
+      });
+      const result = [];
+      Object.keys(retentionRates).forEach(key => {
+        const [orderSequence, daysSinceFirstPurchase] = key.split('_').map(Number);
+        const retentionRate = (retentionRates[key] / firstOrderCount) * 100; // Calculate percentage
+  
+        result.push({
+          orderSequence,
+          daysSinceFirstPurchase,
+          retentionRate,
+        });
+      });
+      result.sort((a, b) => {
+        if (a.orderSequence === b.orderSequence) {
+          return a.daysSinceFirstPurchase - b.daysSinceFirstPurchase;
+        }
+        return a.orderSequence - b.orderSequence;
+      });
+  
+      return result;
     } catch (error) {
-      console.error('Error fetching retention curve:', error);
-      throw error;
+      console.error('Error in getRetentionCurve:', error);
+      throw new Error('Error analyzing customer retention');
     }
   };
+  
+
+
+  
+  export const getRetentionChart = async (period) => {
+    try {
+      const validPeriods = ['daily', 'weekly', 'monthly'];
+      if (!validPeriods.includes(period)) {
+        throw new Error('Invalid period specified');
+      }
+      const orders = await Order.aggregate([
+        { $match: { customer: { $ne: null } } },
+        { $sort: { 'customer.id': 1, createdAt: 1 } },
+        { $group: {
+          _id: { customerId: '$customer.id', date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } } },
+          firstPurchaseDate: { $min: "$createdAt" }
+        }}
+      ]);
+  
+      if (orders.length === 0) return { status: 'success', data: [] };
+  
+      const cohortMap = new Map();
+      orders.forEach(order => {
+        const customerId = order._id.customerId;
+        const firstPurchaseDate = order.firstPurchaseDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+        if (!cohortMap.has(customerId)) {
+          cohortMap.set(customerId, firstPurchaseDate);
+        }
+      });
+  
+      const retentionData = [];
+      for (const [customerId, cohort] of cohortMap.entries()) {
+        const customerOrders = await Order.find({ 'customer.id': customerId }).sort({ createdAt: 1 });
+  
+        customerOrders.forEach(order => {
+          const orderDate = new Date(order.createdAt);
+          let periodKey;
+  
+          switch (period) {
+            case 'daily':
+              periodKey = orderDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+              break;
+            case 'weekly':
+              periodKey = `${orderDate.getFullYear()}-W${Math.ceil(orderDate.getDate() / 7)}`;
+              break;
+            case 'monthly':
+              periodKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+              break;
+          }
+  
+          retentionData.push({ cohort, periodKey, customerId });
+        });
+      }
+  
+      const periodGroups = {};
+  
+      retentionData.forEach(data => {
+        const { cohort, periodKey } = data;
+        if (!periodGroups[cohort]) {
+          periodGroups[cohort] = {};
+        }
+        if (!periodGroups[cohort][periodKey]) {
+          periodGroups[cohort][periodKey] = 0;
+        }
+        periodGroups[cohort][periodKey] += 1;
+      });
+  
+      const retentionTable = {};
+      Object.keys(periodGroups).forEach(cohort => {
+        const cohortSize = periodGroups[cohort][Object.keys(periodGroups[cohort])[0]] || 0;
+        retentionTable[cohort] = {};
+  
+        Object.keys(periodGroups[cohort]).forEach(periodKey => {
+          const retentionRate = (periodGroups[cohort][periodKey] / cohortSize) * 100;
+          retentionTable[cohort][periodKey] = retentionRate.toFixed(2);
+        });
+      });
+  
+      return { status: 'success', data: retentionTable };
+  
+    } catch (error) {
+      console.error('Error in getRetentionChart:', error);
+      throw new Error('Error generating retention chart');
+    }
+  };
+  
+  
+  
+  
+  
 
 
   export const getCityBreakdown = async () => {
     try {
       const now = new Date();
-      
-      // Step 1: Get the total number of customers and their first order dates by city
       const cityCohorts = await Order.aggregate([
         {
           $group: {

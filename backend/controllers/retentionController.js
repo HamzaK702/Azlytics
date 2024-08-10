@@ -6,6 +6,7 @@ import { getCityBreakdown } from '../services/retentionService.js';
 import { getRegionBreakdown } from '../services/retentionService.js';
 import { getProductTitleBreakdown } from '../services/retentionService.js';
 import { getAovBreakdown } from '../services/retentionService.js';
+import { getRetentionChart } from '../services/retentionService.js';
 
 export const getRepeatRateByCity = async (req, res) => {
   try {
@@ -51,6 +52,25 @@ export const getRetentionRates = async (req, res) => {
     });
   }
 };
+
+export const getRetentionChartData = async (req, res) => {
+  try {
+    const { period } = req.query; // Expect period as a query parameter
+    const retentionData = await getRetentionChart(period);
+    res.status(200).json({
+      status: 'success',
+      data: retentionData.data,
+    });
+  } catch (error) {
+    console.error('Error fetching retention chart data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch retention chart data',
+      error: error.message,
+    });
+  }
+};
+
 
 export const fetchCityBreakdown = async (req, res) => {
   try {
