@@ -3,13 +3,14 @@
 import { getAuthUrl, getToken } from '../services/googleAdAuthService.js';
 
 export const getGoogleAuthUrl = (req, res) => {
-  const authUrl = getAuthUrl();
+  const userId = req.query.userId
+  const authUrl = getAuthUrl(userId);
   res.redirect(authUrl);
 };
 
 export const handleGoogleAuthCallback = (req, res) => {
     const code = req.query.code; // Extract authorization code from query parameters
-  
+    const state = req.query.state; // Extract state parameter which contains userId
     if (!code) {
       return res.status(400).send('No authorization code provided');
     }
@@ -23,9 +24,16 @@ export const handleGoogleAuthCallback = (req, res) => {
       }
   
       console.log('Access token and other details:', token);
-  
-      // Optionally, you can store the token securely and use it for future API calls
-      // For now, just send a success message
-      res.send('Authorization successful! Check the console for the token details.');
+      const userId = decodeURIComponent(state);
+
+      //store the  token  against the userId in a new table userAdAccounts
+        
+        //token will go in a field called googleAdToken
+         
+      res.json({
+        message: 'Google authentication successful',
+        userId,
+        token
+      });
     });
   };
