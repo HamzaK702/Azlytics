@@ -23,13 +23,12 @@ export class ShopifyController {
                 console.log(shop, hmac, code)
                 console.log("We received a token: " + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
-
+               
                 const userId = req.user._id;
                 const userShop= new UserShop({userId , shop , token:accessToken});
                 await userShop.save();
                 console.log("UserShop entry created:" , UserShop);
         
-                // Emit an event with shop and token
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
 
             } catch (error) {

@@ -16,6 +16,10 @@ import salesRoutes from './routes/salesRoutes.js';
 import retentionRoutes from "./routes/retentionRoutes.js"
 import customerAnalyticRoutes from "./routes/customerAnalyticRoutes.js";
 
+import googleAdAuthRoutes from './routes/googleAdRoutes.js';
+import facebookRoutes from "./routes/facebookRoutes.js"
+
+
 /* CONFIGURATIONS */
 dotenv.config();
 
@@ -55,6 +59,8 @@ app.get('/hello', (req, res) => {
 app.use("/api", authRoutes);
 app.use('/api', shopifyRouter);
 app.use('/bulk', bulkRoutes);
+app.use('/api', googleAdAuthRoutes);
+app.use('/api', facebookRoutes);
 app.use('/api', ordersRoutes);
 app.use('/api' , salesRoutes );
 app.use('/api' , retentionRoutes);
