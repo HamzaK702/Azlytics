@@ -5,8 +5,9 @@ const router = express.Router();
 
 router.get('/shopify', (req, res) => {
     const shop = req.query.shop;
+    const userId = req.query.userId;
     if (shop) {
-        const state = ShopifyController.nonce();
+        const state = `${userId}-${ShopifyController.nonce()}`;
         const installUrl = ShopifyController.generateInstallUrl(shop, state);
         console.log(state)
         console.log(installUrl)

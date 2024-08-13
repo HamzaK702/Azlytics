@@ -11,6 +11,7 @@ dotenv.config();
 export class ShopifyController {
     static async handleAuth(req, res) {
         const { shop, hmac, code, state } = req.query;
+        const  userId = state.split('-')[0]; 
         const stateCookie = req.cookies.state;
 
         if (state !== stateCookie) {
@@ -24,8 +25,7 @@ export class ShopifyController {
                 console.log("We received a token: " + accessToken)
                 res.status(200).send('Success, token: ' + accessToken);
                
-                const userId = req.user._id;
-                const userShop= new UserShop({userId , shop , token:accessToken});
+                const userShop= new UserShop({userId , shop , token: accessToken});
                 await userShop.save();
                 console.log("UserShop entry created:" , UserShop);
         
