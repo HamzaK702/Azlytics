@@ -18,21 +18,31 @@ export const handleFacebookCallback = async (req, res) => {
             console.log("Something wrong with accessToken or adAccounts")
         }
         try {
-            const existingUserAdAccount = await UserAdAccount.findOne({ userId });
-      
-            if (existingUserAdAccount) {
-              return res.status(400).send('User Ad Account already exists. No updates allowed.');
-            }
-      
+          const existingUserAdAccount = await UserAdAccount.findOne({ userId });
+
+          if (existingUserAdAccount) {
+            // Update the existing user ad account
+            existingUserAdAccount.metaAccessToken = accessToken;
+            existingUserAdAccount.metaAdAccounts = adAccounts.data ? adAccounts.data.map(account => ({
+              accountId: account.account_id,
+              accountName: account.id || '',
+            })) : null;
+          
+            await existingUserAdAccount.save();
+          } else {
+            // Create a new user ad account
             const userAdAccount = new UserAdAccount({
               userId,
               metaAccessToken: accessToken,
-              metaAdAccounts: adAccounts.map(account => ({
-                accountId: account.id,
-                accountName: account.name,
-              })),
+              metaAdAccounts: adAccounts.data ? adAccounts.data.map(account => ({
+                accountId: account.account_id,
+                accountName: account.id || '',
+              })) : null,
             });
+          
             await userAdAccount.save();
+          }
+            
             res.json({
               message: 'Facebook authentication successful',
               userId,
