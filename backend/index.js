@@ -15,7 +15,7 @@ import ordersRoutes from './routes/ordersRoutes.js';
 import salesRoutes from './routes/salesRoutes.js';
 import retentionRoutes from "./routes/retentionRoutes.js"
 import customerAnalyticRoutes from "./routes/customerAnalyticRoutes.js";
-
+import { ShopifyService } from "./services/ShopifyService.js";
 import googleAdAuthRoutes from './routes/googleAdRoutes.js';
 import facebookRoutes from "./routes/facebookRoutes.js"
 
@@ -47,7 +47,12 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Test API
-app.get('/hello', (req, res) => {
+app.get('/hello', async (req, res) => {
+  const shop = "dumbclient.myshopify.com";
+  const token = "shpua_9dd90273c982021d4c9bed11b7bc6e6c";
+  const orderId = "gid://shopify/Order/6052399480893"
+  const resp = await ShopifyService.getShippingRates(shop, token, orderId)
+  console.log(resp)
   res.send('Hello, Login Success ');
 });
 

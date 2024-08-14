@@ -2,6 +2,8 @@
 import Customer from '../models/BulkTables/BulkCustomer/customer.js';
 import Order from '../models/BulkTables/BulkOrder/order.js';
 import Product from '../models/BulkTables/BulkProduct/product.js';
+import UserShop from '../models/userShopModel.js';
+import { ShopifyService } from "./ShopifyService.js";
 
 export const saveCustomerData = async (bulkData , userShopId , shopName ) => {
   try {
@@ -61,6 +63,11 @@ export const saveCustomerData = async (bulkData , userShopId , shopName ) => {
  
 export const saveOrderData = async (bulkData , userShopId , shopName ) => {
     try {
+     const userShop = await UserShop.findOne({ shop: shopName });
+    if (!userShop) {
+      throw new Error('UserShop not found');
+    }
+      const token = userShop.token;
       for (const item of bulkData) {
         if (!item || !item.id) {
           continue; // Skip invalid items
@@ -76,8 +83,8 @@ export const saveOrderData = async (bulkData , userShopId , shopName ) => {
           } else {
             // If order exists, update it
             Object.assign(order, item);
-            order.userShopId = userShopId;
-          order.shopName = shopName;
+            order.userShopId = userShop._id;
+            order.shopName = shopName;
           }
   
           // Save the order
@@ -99,6 +106,28 @@ export const saveOrderData = async (bulkData , userShopId , shopName ) => {
               await order.save();
             }
           }
+          const resp = await ShopifyService.getShippingRates(shopName, token, order.id)
+          console.log("order.id: ", order.id)
+          console.log(resp)
+
+          //Example respone:
+          //order.id:  gid://shopify/Order/6052399480893
+          // {
+          //     title: 'International Shipping',
+          //     price: '60.00',
+          //     shippingRateHandle: 'shopify-International%20Shipping-60.00',
+          //     discountAllocations: []
+          //   }
+
+          //Create a new table lets call it shippingRates with the fields
+          // orderId: --> order.id
+          // title: --> resp.title
+          // price -->  resp.price
+          // shippingRateHandle: --> resp.shippingRateHandle
+          // discountAllocations: --> resp.discountAllocations
+
+          //create the update or create function meaning if orderId already exists then update it, if it doesn't exist then create new entry
+          //Only save the data if resp is not null.
         }
       }
       console.log('Data saved successfully');

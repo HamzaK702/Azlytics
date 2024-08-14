@@ -11,6 +11,7 @@ dotenv.config();
 export class ShopifyController {
     static async handleAuth(req, res) {
         const { shop, hmac, code, state } = req.query;
+        const  userId = state.split('-')[0]; 
         const stateCookie = req.cookies.state;
 
         if (state !== stateCookie) {
