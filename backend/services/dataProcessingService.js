@@ -109,6 +109,25 @@ export const saveOrderData = async (bulkData , userShopId , shopName ) => {
           const resp = await ShopifyService.getShippingRates(shopName, token, order.id)
           console.log("order.id: ", order.id)
           console.log(resp)
+
+          //Example respone:
+          //order.id:  gid://shopify/Order/6052399480893
+          // {
+          //     title: 'International Shipping',
+          //     price: '60.00',
+          //     shippingRateHandle: 'shopify-International%20Shipping-60.00',
+          //     discountAllocations: []
+          //   }
+
+          //Create a new table lets call it shippingRates with the fields
+          // orderId: --> order.id
+          // title: --> resp.title
+          // price -->  resp.price
+          // shippingRateHandle: --> resp.shippingRateHandle
+          // discountAllocations: --> resp.discountAllocations
+
+          //create the update or create function meaning if orderId already exists then update it, if it doesn't exist then create new entry
+          //Only save the data if resp is not null.
         }
       }
       console.log('Data saved successfully');
