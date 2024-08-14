@@ -1,5 +1,6 @@
 import Order from "../models/BulkTables/BulkOrder/order.js";
 import Customer from "../models/BulkTables/BulkCustomer/customer.js"
+import Product from "../models/BulkTables/BulkProduct/product.js";
 
 export const getOrdersTrend = async () => {
   try {
@@ -219,6 +220,59 @@ export const calculateAOV = async () => {
     throw error;
   }
 };
+
+
+export const calculateCOGS = async () => {
+    try {
+        const cogs = await Order.aggregate([
+            { $unwind: "$lineItems" }, 
+            {
+                $lookup: {
+                    from: "products", 
+                    let: { variantId: "$lineItems.product.id" },
+                    pipeline: [
+                        { $unwind: "$variants" }, 
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ["$id", "$$variantId"]
+                                }
+                            }
+                        },
+                        {
+                            $project: {
+                                cost_price: { $toDouble: "$price" } 
+                            }
+                        }
+                    ],
+                    as: "productVariant"
+                }
+            },
+            { $unwind: "$productVariant" }, // Unwind the joined productVariant array
+            {
+                $group: {
+                    _id: null,
+                    totalCOGS: {
+                        $sum: {
+                            $multiply: [
+                                "$productVariant.cost_price", // Cost price of product variant
+                                "$lineItems.quantity" // Quantity sold
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        // Return the total COGS
+        return cogs[0]?.totalCOGS || 0;
+      
+    } catch (error) {
+        console.error('Error calculating COGS:', error);
+        throw error;
+    }
+};
+
 
 
 

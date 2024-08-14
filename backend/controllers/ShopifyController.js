@@ -25,9 +25,12 @@ export class ShopifyController {
                 res.status(200).send('Success, token: ' + accessToken);
                
                 const userId = req.user._id;
-                const userShop= new UserShop({userId , shop , token:accessToken});
-                await userShop.save();
-                console.log("UserShop entry created:" , UserShop);
+               const result  = await UserShop.findOneAndUpdate(
+                {userId , shop},
+                {token:accessToken},
+                {upsert: true, new: true , setDefaultsOnInsert: true} 
+               )
+               console.log("UserShop entry processed:", result);
         
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
 

@@ -1,4 +1,4 @@
-import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV} from "../services/ordersService.js";
+import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calculateCOGS} from "../services/ordersService.js";
 
 
 export const ordersTrend = async (req, res) => {
@@ -28,6 +28,22 @@ export const getAOV = async (req, res) => {
   } catch (error) {
     console.error('Error fetching AOV data:', error);
     res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+export const getCOGS = async (req, res) => {
+  try {
+      const totalCOGS = await calculateCOGS();
+      res.status(200).json({
+          success: true,
+          totalCOGS
+      });
+  } catch (error) {
+      console.error('Error in getCOGS controller:', error);
+      res.status(500).json({
+          success: false,
+          message: 'Error calculating COGS'
+      });
   }
 };
 
