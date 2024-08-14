@@ -1,4 +1,11 @@
-import { getFacebookLoginUrl, getAccessToken, getAdAccounts } from '../services/facebookService.js';
+import { 
+  getFacebookLoginUrl, 
+  getAccessToken, 
+  getAdAccounts, 
+  getAdInsights,
+  getDailyAdInsights,
+  saveDailyInsights
+} from '../services/facebookService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
 
 export const redirectToFacebook = (req, res) => {
@@ -18,36 +25,37 @@ export const handleFacebookCallback = async (req, res) => {
             console.log("Something wrong with accessToken or adAccounts")
         }
         try {
-          const existingUserAdAccount = await UserAdAccount.findOne({ userId });
-
-          if (existingUserAdAccount) {
-            // Update the existing user ad account
-            existingUserAdAccount.metaAccessToken = accessToken;
-            existingUserAdAccount.metaAdAccounts = adAccounts.data ? adAccounts.data.map(account => ({
-              accountId: account.account_id,
-              accountName: account.id || '',
-            })) : null;
+          const adAccountsData = adAccounts.data?.map(account => ({
+            accountId: account.account_id,
+            accountName: account.id || '',
+          })) || null;
           
-            await existingUserAdAccount.save();
-          } else {
-            // Create a new user ad account
-            const userAdAccount = new UserAdAccount({
-              userId,
-              metaAccessToken: accessToken,
-              metaAdAccounts: adAccounts.data ? adAccounts.data.map(account => ({
-                accountId: account.account_id,
-                accountName: account.id || '',
-              })) : null,
-            });
+          const updateData = {
+            metaAccessToken: accessToken,
+            metaAdAccounts: adAccountsData || null,
+          };
           
-            await userAdAccount.save();
+          const userAdAccount = await UserAdAccount.findOneAndUpdate(
+            { userId },
+            updateData,
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+          );
+           
+          for (const entry of adAccounts.data) {
+            const last30DaysInsights = await getDailyAdInsights(entry.account_id, accessToken);
+            if (last30DaysInsights) {
+                await saveDailyInsights(userId, entry.account_id, last30DaysInsights);
+            }
           }
-            
+          
+           
+
             res.json({
               message: 'Facebook authentication successful',
               userId,
               accessToken,
               adAccounts,
+              userAdAccount
             });
           } catch (error) {
             console.error('Error storing Facebook token:', error);
