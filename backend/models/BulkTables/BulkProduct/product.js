@@ -12,7 +12,11 @@ const ProductVariantSchema = new Schema({
     transformedSrc: { type: String, default: null }
   },
   inventoryItem: {
-    id: { type: String }
+    id: { type: String },
+    unitCost: {
+      amount: { type: String, default: null },
+      currencyCode: { type: String, default: null }
+    }
   },
   legacyResourceId: { type: String },
   price: { type: String },
