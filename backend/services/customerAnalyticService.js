@@ -125,8 +125,6 @@ export const getLoyalCustomers = async () => {
 export const getPotentialLoyalists = async () => {
   try {
     const now = new Date();
-
-    // Get total count of customers to calculate percentiles
     const totalCustomers = await Order.aggregate([
       {
         $group: {

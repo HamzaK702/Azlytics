@@ -1,6 +1,8 @@
 import Order from "./../models/BulkTables/BulkOrder/order.js";
 import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
 import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
+import MetaAdInsights from "./../models/metaAdInsightModel.js";
+import Product from "./../models/BulkTables/BulkProduct/product.js";
 
 // Aggregates total sales by date
 const aggregateTotalSales = () => {
@@ -8,19 +10,18 @@ const aggregateTotalSales = () => {
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        totalSales: { $sum: { $toDouble: "$totalPrice" } } // Ensure totalPrice is treated as a number
-      }
+        totalSales: { $sum: { $toDouble: "$totalPrice" } }, // Ensure totalPrice is treated as a number
+      },
     },
     {
       $project: {
         _id: 0,
         orderDate: "$_id",
-        totalSales: 1
-      }
-    }
+        totalSales: 1,
+      },
+    },
   ]);
 };
-
 
 // Aggregates sales from new customers by date
 const aggregateNewCustomerSales = () => {
@@ -30,8 +31,8 @@ const aggregateNewCustomerSales = () => {
         from: "customers",
         localField: "customer.id",
         foreignField: "id",
-        as: "customer"
-      }
+        as: "customer",
+      },
     },
     { $unwind: "$customer" },
     {
@@ -41,25 +42,30 @@ const aggregateNewCustomerSales = () => {
         isNewCustomer: {
           $eq: [
             { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            { $dateToString: { format: "%Y-%m-%d", date: "$customer.createdAt" } }
-          ]
-        }
-      }
+            {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$customer.createdAt",
+              },
+            },
+          ],
+        },
+      },
     },
     { $match: { isNewCustomer: true } },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        newCustomerSales: { $sum: "$totalPrice" }
-      }
+        newCustomerSales: { $sum: "$totalPrice" },
+      },
     },
     {
       $project: {
         _id: 0,
         orderDate: "$_id",
-        newCustomerSales: 1
-      }
-    }
+        newCustomerSales: 1,
+      },
+    },
   ]);
 };
 
@@ -71,8 +77,8 @@ const aggregateReturningCustomerSales = () => {
         from: "customers",
         localField: "customer.id",
         foreignField: "id",
-        as: "customer"
-      }
+        as: "customer",
+      },
     },
     { $unwind: "$customer" },
     {
@@ -82,109 +88,130 @@ const aggregateReturningCustomerSales = () => {
         isReturningCustomer: {
           $gt: [
             { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            { $dateToString: { format: "%Y-%m-%d", date: "$customer.createdAt" } }
-          ]
-        }
-      }
+            {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$customer.createdAt",
+              },
+            },
+          ],
+        },
+      },
     },
     { $match: { isReturningCustomer: true } },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        returningCustomerSales: { $sum: "$totalPrice" }
-      }
+        returningCustomerSales: { $sum: "$totalPrice" },
+      },
     },
     {
       $project: {
         _id: 0,
         orderDate: "$_id",
-        returningCustomerSales: 1
-      }
-    }
+        returningCustomerSales: 1,
+      },
+    },
   ]);
 };
 
 // Combines sales trends into a single dataset
 const getSalesTrends = async () => {
-  const [totalSales, newCustomerSales, returningCustomerSales] = await Promise.all([
-    aggregateTotalSales(),
-    aggregateNewCustomerSales(),
-    aggregateReturningCustomerSales()
-  ]);
+  const [totalSales, newCustomerSales, returningCustomerSales] =
+    await Promise.all([
+      aggregateTotalSales(),
+      aggregateNewCustomerSales(),
+      aggregateReturningCustomerSales(),
+    ]);
 
-  console.log('Total Sales:', totalSales);
-  console.log('New Customer Sales:', newCustomerSales);
-  console.log('Returning Customer Sales:', returningCustomerSales);
+  console.log("Total Sales:", totalSales);
+  console.log("New Customer Sales:", newCustomerSales);
+  console.log("Returning Customer Sales:", returningCustomerSales);
 
-  return totalSales.map(totalSale => {
-    const newCustomerSale = newCustomerSales.find(nc => nc.orderDate === totalSale.orderDate) || { newCustomerSales: 0 };
-    const returningCustomerSale = returningCustomerSales.find(rc => rc.orderDate === totalSale.orderDate) || { returningCustomerSales: 0 };
+  return totalSales.map((totalSale) => {
+    const newCustomerSale = newCustomerSales.find(
+      (nc) => nc.orderDate === totalSale.orderDate
+    ) || { newCustomerSales: 0 };
+    const returningCustomerSale = returningCustomerSales.find(
+      (rc) => rc.orderDate === totalSale.orderDate
+    ) || { returningCustomerSales: 0 };
 
     return {
       orderDate: totalSale.orderDate,
       totalSales: totalSale.totalSales,
       newCustomerSales: newCustomerSale.newCustomerSales,
-      returningCustomerSales: returningCustomerSale.returningCustomerSales
+      returningCustomerSales: returningCustomerSale.returningCustomerSales,
     };
   });
 };
 
 // Computes the average order value (AOV) for each date
 const getAOV = async () => {
-  const [totalSales, newCustomerSales, returningCustomerSales] = await Promise.all([
-    aggregateTotalSales(),
-    aggregateNewCustomerSales(),
-    aggregateReturningCustomerSales()
-  ]);
+  const [totalSales, newCustomerSales, returningCustomerSales] =
+    await Promise.all([
+      aggregateTotalSales(),
+      aggregateNewCustomerSales(),
+      aggregateReturningCustomerSales(),
+    ]);
 
-  console.log('Total Sales:', totalSales);
-  console.log('New Customer Sales:', newCustomerSales);
-  console.log('Returning Customer Sales:', returningCustomerSales);
+  console.log("Total Sales:", totalSales);
+  console.log("New Customer Sales:", newCustomerSales);
+  console.log("Returning Customer Sales:", returningCustomerSales);
 
-  return totalSales.map(totalSale => {
-    const newCustomerSale = newCustomerSales.find(nc => nc.orderDate === totalSale.orderDate) || { newCustomerSales: 0, newCustomerOrders: 0 };
-    const returningCustomerSale = returningCustomerSales.find(rc => rc.orderDate === totalSale.orderDate) || { returningCustomerSales: 0, returningCustomerOrders: 0 };
+  return totalSales.map((totalSale) => {
+    const newCustomerSale = newCustomerSales.find(
+      (nc) => nc.orderDate === totalSale.orderDate
+    ) || { newCustomerSales: 0, newCustomerOrders: 0 };
+    const returningCustomerSale = returningCustomerSales.find(
+      (rc) => rc.orderDate === totalSale.orderDate
+    ) || { returningCustomerSales: 0, returningCustomerOrders: 0 };
 
     const combinedAOV = totalSale.totalSales / (totalSale.totalOrders || 1);
-    const newCustomerAOV = newCustomerSale.newCustomerSales / (newCustomerSale.newCustomerOrders || 1);
-    const returningCustomerAOV = returningCustomerSale.returningCustomerSales / (returningCustomerSale.returningCustomerOrders || 1);
+    const newCustomerAOV =
+      newCustomerSale.newCustomerSales /
+      (newCustomerSale.newCustomerOrders || 1);
+    const returningCustomerAOV =
+      returningCustomerSale.returningCustomerSales /
+      (returningCustomerSale.returningCustomerOrders || 1);
 
     return {
       orderDate: totalSale.orderDate,
       combinedAOV,
       newCustomerAOV,
-      returningCustomerAOV
+      returningCustomerAOV,
     };
   });
 };
 
 const getTopCities = async () => {
   try {
-    const orders = await Order.find({}, 'createdAt customer.id shippingAddress.city').populate('customer.id', 'createdAt numberOfOrders');
-    const customerData = await Customer.find({}, 'id createdAt numberOfOrders');
-   
+    const orders = await Order.find(
+      {},
+      "createdAt customer.id shippingAddress.city"
+    ).populate("customer.id", "createdAt numberOfOrders");
+    const customerData = await Customer.find({}, "id createdAt numberOfOrders");
 
     const cityData = {
       newCustomers: {},
       returningCustomers: {},
     };
 
-    orders.forEach(order => {
-      if (!order.customer || !order.customer.id) return; 
+    orders.forEach((order) => {
+      if (!order.customer || !order.customer.id) return;
 
-      const customer = customerData.find(c => c.id === order.customer.id);
-      console.log("customer check" , customer);
-
+      const customer = customerData.find((c) => c.id === order.customer.id);
+      console.log("customer check", customer);
 
       if (customer) {
-        const isNewCustomer = customer.numberOfOrders === '1'; // Adjust based on your numberOfOrders field type
+        const isNewCustomer = customer.numberOfOrders === "1"; // Adjust based on your numberOfOrders field type
         const city = order.shippingAddress.city;
 
         if (isNewCustomer) {
           if (!cityData.newCustomers[city]) cityData.newCustomers[city] = 0;
           cityData.newCustomers[city]++;
         } else {
-          if (!cityData.returningCustomers[city]) cityData.returningCustomers[city] = 0;
+          if (!cityData.returningCustomers[city])
+            cityData.returningCustomers[city] = 0;
           cityData.returningCustomers[city]++;
         }
       }
@@ -206,26 +233,27 @@ const getTopCities = async () => {
 
 const getTopSKUs = async () => {
   try {
-  
-    const orders = await Order.find({}, 'id createdAt customer.id');
+    const orders = await Order.find({}, "id createdAt customer.id");
 
-    const lineItems = await LineItem.find({}, 'id quantity product __parentId');
-   
-    const customers = await Customer.find({}, 'id createdAt numberOfOrders');
+    const lineItems = await LineItem.find({}, "id quantity product __parentId");
+
+    const customers = await Customer.find({}, "id createdAt numberOfOrders");
 
     const skuData = {
       newCustomers: {},
       returningCustomers: {},
     };
 
-    orders.forEach(order => {
-      const customer = customers.find(c => c.id === order.customer.id);
+    orders.forEach((order) => {
+      const customer = customers.find((c) => c.id === order.customer.id);
       if (!customer) return;
 
-      const isNewCustomer = customer.numberOfOrders === '1';
-      const orderLineItems = lineItems.filter(item => item.__parentId === order.id);
+      const isNewCustomer = customer.numberOfOrders === "1";
+      const orderLineItems = lineItems.filter(
+        (item) => item.__parentId === order.id
+      );
 
-      orderLineItems.forEach(item => {
+      orderLineItems.forEach((item) => {
         const sku = item.product.sku;
         const quantity = item.quantity;
 
@@ -233,7 +261,8 @@ const getTopSKUs = async () => {
           if (!skuData.newCustomers[sku]) skuData.newCustomers[sku] = 0;
           skuData.newCustomers[sku] += quantity;
         } else {
-          if (!skuData.returningCustomers[sku]) skuData.returningCustomers[sku] = 0;
+          if (!skuData.returningCustomers[sku])
+            skuData.returningCustomers[sku] = 0;
           skuData.returningCustomers[sku] += quantity;
         }
       });
@@ -253,10 +282,357 @@ const getTopSKUs = async () => {
   }
 };
 
+const calculateGrossSales = async () => {
+  try {
+    const grossSales = await Order.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalGrossSales: {
+            $sum: { $toDouble: "$subtotalPrice" },
+          },
+        },
+      },
+    ]);
+    return grossSales[0]?.totalGrossSales || 0;
+  } catch (error) {
+    console.error("Error calculating Gross Sales:", error);
+    throw error;
+  }
+};
 
+const calculateTotalRefunds = async () => {
+  try {
+    const refunds = await Order.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalRefunded: {
+            $sum: { $toDouble: "$totalRefunded" },
+          },
+        },
+      },
+    ]);
+    return refunds[0]?.totalRefunded || 0;
+  } catch (error) {
+    console.error("Error calculating total refunds:", error);
+    throw error;
+  }
+};
+
+const calculateTotalTaxes = async () => {
+  try {
+    const taxes = await Order.aggregate([
+      {
+        $unwind: "$taxLines",
+      },
+      {
+        $group: {
+          _id: null,
+          totalTaxes: {
+            $sum: { $toDouble: "$taxLines.price" },
+          },
+        },
+      },
+    ]);
+    return taxes[0]?.totalTaxes || 0;
+  } catch (error) {
+    console.error("Error calculating total taxes:", error);
+    throw error;
+  }
+};
+
+const calculateTotalFees = async () => {
+  try {
+    const fees = await Order.aggregate([
+      {
+        $unwind: "$transactions",
+      },
+      {
+        $unwind: "$transactions.fees",
+      },
+      {
+        $group: {
+          _id: null,
+          totalFees: {
+            $sum: { $toDouble: "$transactions.fees.amount" },
+          },
+        },
+      },
+    ]);
+    return fees[0]?.totalFees || 0;
+  } catch (error) {
+    console.error("Error calculating total fees:", error);
+    throw error;
+  }
+};
+
+const calculateTotalShippingCost = async () => {
+  try {
+      const shippingCost = await Order.aggregate([
+          {
+              $group: {
+                  _id: null,
+                  totalShippingCost: {
+                      $sum: {
+                          $toDouble: "$totalShippingPriceSet.shopMoney.amount" 
+                      }
+                  }
+              }
+          }
+      ]);
+      return shippingCost[0]?.totalShippingCost || 0;
+  } catch (error) {
+      console.error('Error calculating total shipping cost:', error);
+      throw error;
+  }
+};
+
+
+const calculateTotalAdSpend = async () => {
+  try {
+    const result = await MetaAdInsights.aggregate([
+      {
+        $match: {
+          insights: { $ne: [] }
+        }
+      },
+      { 
+        $unwind: "$insights"
+      },
+      {
+        $match: {
+          "insights.spend": { $gt: 0 } 
+        }
+      },
+      {
+        $group: {
+          _id: null, 
+          totalAdSpend: { $sum: "$insights.spend" } 
+        }
+      }
+    ]);
+    
+    return result[0]?.totalAdSpend || 0;
+  } catch (error) {
+    console.error('Error calculating total ad spend:', error);
+    throw error;
+  }
+};
+
+
+const calculateTotalSales = async () => {
+  try {
+    // Fetch all necessary data
+    const [
+      grossSales,
+      totalRefunds,
+      totalTaxes,
+      totalShippingCost,
+      totalFees,
+      totalAdSpend,
+    ] = await Promise.all([
+      calculateGrossSales(),
+      calculateTotalRefunds(),
+      calculateTotalTaxes(),
+      calculateTotalShippingCost(),
+      calculateTotalFees(),
+      calculateTotalAdSpend(),
+    ]);
+
+    // Calculate Total Sales
+    const totalSales =
+      grossSales +
+      totalShippingCost +
+      totalTaxes +
+      totalFees -
+      totalRefunds -
+      totalAdSpend;
+    return totalSales;
+  } catch (error) {
+    console.error("Error calculating total sales:", error);
+    throw error;
+  }
+};
+
+
+
+export const calculateGrossProfitBreakdown = async () => {
+  try {
+    const orders = await Order.aggregate([
+      { $unwind: "$lineItems" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "lineItems.product.id",
+          foreignField: "id",
+          as: "productDetails",
+        },
+      },
+      { $unwind: "$productDetails" },
+    ]);
+
+    const productGrossProfits = {};
+    let totalGrossProfit = 0;
+
+    orders.forEach((order) => {
+      const sellingPrice = parseFloat(order.productDetails.userPrice);
+      const costPrice = parseFloat(order.productDetails.costPrice);
+      const quantity = order.lineItems.quantity;
+
+      if (isNaN(sellingPrice) || isNaN(costPrice)) {
+        console.log(
+          `Skipping product with invalid prices. Product ID: ${order.lineItems.product.id}`
+        );
+        return;
+      }
+
+      console.log(
+        "Selling Price:",
+        sellingPrice,
+        "Cost Price:",
+        costPrice,
+        "Quantity:",
+        quantity
+      );
+
+      const grossProfit = (sellingPrice - costPrice) * quantity;
+      totalGrossProfit += grossProfit;
+
+      if (productGrossProfits[order.lineItems.product.id]) {
+        productGrossProfits[order.lineItems.product.id] += grossProfit;
+      } else {
+        productGrossProfits[order.lineItems.product.id] = grossProfit;
+      }
+    });
+    const productBreakdown = Object.entries(productGrossProfits).map(
+      ([productId, grossProfit]) => ({
+        productId,
+        grossProfit,
+        percentageContribution: `${(
+          (grossProfit / totalGrossProfit) * 100
+        ).toFixed(2)}%`, 
+      })
+    );
+
+    return productBreakdown;
+  } catch (error) {
+    throw new Error(`Error calculating gross profit breakdown: ${error.message}`);
+  }
+};
+
+
+const calculateProductProfitability = async () => {
+  try {
+    const orders = await Order.aggregate([
+      { $unwind: "$lineItems" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "lineItems.product.id",
+          foreignField: "id",
+          as: "productDetails"
+        }
+      },
+      { $unwind: "$productDetails" }
+    ]);
+
+    const productMetrics = {};
+    let totalGrossProfit = 0;
+    orders.forEach(order => {
+      const variantId = order.lineItems.product.id;
+      const quantity = order.lineItems.quantity;
+      const sellingPrice = parseFloat(order.productDetails.userPrice);
+      const costPrice = parseFloat(order.productDetails.costPrice);
+      const title = order.lineItems.title || order.productDetails.title;
+      const imageUrl = order.productDetails.image || '';
+      if (isNaN(sellingPrice) || isNaN(costPrice)) {
+        console.log(`Skipping product with invalid prices. Variant ID: ${variantId}`);
+        return;
+      }
+
+      const netSalesValue = sellingPrice * quantity;
+      const cogs = costPrice * quantity;
+      const grossProfit = netSalesValue - cogs;
+
+      totalGrossProfit += grossProfit;
+
+      if (productMetrics[variantId]) {
+        productMetrics[variantId].netSalesValue += netSalesValue;
+        productMetrics[variantId].netSalesUnits += quantity;
+        productMetrics[variantId].cogs += cogs;
+        productMetrics[variantId].grossProfit += grossProfit;
+      } else {
+        productMetrics[variantId] = {
+          variantId,
+          title,
+          imageUrl,
+          netSalesValue,
+          netSalesUnits: quantity,
+          cogs,
+          grossProfit,
+        };
+      }
+    });
+    const productProfitability = Object.values(productMetrics).map(product => {
+      const grossProfitMargin = (product.grossProfit / product.netSalesValue) * 100;
+      return {
+        ...product,
+        grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)) 
+      };
+    });
+    productProfitability.sort((a, b) => b.grossProfit - a.grossProfit);
+
+    return productProfitability;
+
+  } catch (error) {
+    console.error("Error calculating product profitability:", error);
+    throw error;
+  }
+};
+
+
+const calculateLeastProfitableProducts = async () => {
+  try {
+    const productProfitability = await calculateProductProfitability();
+    const leastProfitableProducts = productProfitability.sort(
+      (a, b) => a.grossProfit - b.grossProfit
+    );
+
+    return leastProfitableProducts;
+  } catch (error) {
+    console.error("Error calculating least profitable products:", error);
+    throw error;
+  }
+};
+
+const calculateBestSellers = async () => {
+  try {
+    const productProfitability = await calculateProductProfitability();
+    const bestSellers = productProfitability.sort(
+      (a, b) => b.netSalesUnits - a.netSalesUnits
+    );
+
+    return bestSellers;
+  } catch (error) {
+    console.error("Error calculating best sellers:", error);
+    throw error;
+  }
+};
 export default {
   getSalesTrends,
   getAOV,
   getTopCities,
-  getTopSKUs
+  getTopSKUs,
+  calculateGrossSales,
+  calculateTotalRefunds,
+  calculateTotalTaxes,
+  calculateTotalFees,
+  calculateTotalShippingCost,
+  calculateTotalAdSpend,
+  calculateTotalSales,
+  calculateGrossProfitBreakdown,
+  calculateProductProfitability,
+  calculateLeastProfitableProducts,
+  calculateBestSellers
 };

@@ -1,4 +1,4 @@
-import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calculateCOGS} from "../services/ordersService.js";
+import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calculateCOGS ,calculateGrossProfit , calculateNetProfit} from "../services/ordersService.js";
 
 
 export const ordersTrend = async (req, res) => {
@@ -13,11 +13,17 @@ export const ordersTrend = async (req, res) => {
 
 export const getOrderTimeDifferences = async (req, res) => {
   try {
-    const timeDifferences = await calculateOrderTimeDifferences();
-    res.json(timeDifferences);
+    console.log("Request received to calculate order time differences.");
+
+    if (!res) {
+      console.error('Response object (res) is not defined');
+      return;
+    }
+
+    await calculateOrderTimeDifferences(req, res);
   } catch (error) {
-    console.error('Error fetching order time differences:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error("Error in getOrderTimeDifferences:", error);
+    res.status(500).json({ message: "An error occurred while processing the request." });
   }
 };
 
@@ -44,6 +50,34 @@ export const getCOGS = async (req, res) => {
           success: false,
           message: 'Error calculating COGS'
       });
+  }
+};
+
+export const getGrossProfit = async (req, res) => {
+  try {
+      const { totalPrice, totalCOGS, grossProfit } = await calculateGrossProfit();
+      res.json({
+          totalPrice,
+          totalCOGS,
+          grossProfit
+      });
+  } catch (error) {
+      res.status(500).json({ error: 'Failed to calculate Gross Profit' });
+  }
+};
+
+export const getNetProfit = async (req, res) => {
+  try {
+      const { totalPrice, totalCOGS, grossProfit, totalExpenses,  netProfit } = await calculateNetProfit();
+      res.json({
+          totalPrice,
+          totalCOGS,
+          grossProfit,
+          totalExpenses,
+          netProfit
+      });
+  } catch (error) {
+      res.status(500).json({ error: 'Failed to calculate Net Profit' });
   }
 };
 

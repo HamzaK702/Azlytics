@@ -4,6 +4,7 @@ import Order from '../models/BulkTables/BulkOrder/order.js';
 import Product from '../models/BulkTables/BulkProduct/product.js';
 import UserShop from '../models/userShopModel.js';
 import { ShopifyService } from "./ShopifyService.js";
+import ShippingRate from '../models/BulkTables/BulkOrder/shippingRate.js';
 
 export const saveCustomerData = async (bulkData , userShopId , shopName ) => {
   try {
@@ -108,7 +109,20 @@ export const saveOrderData = async (bulkData , userShopId , shopName ) => {
           }
           const resp = await ShopifyService.getShippingRates(shopName, token, order.id)
           console.log("order.id: ", order.id)
-          console.log(resp)
+          console.log(resp);
+          if (resp) {
+            await ShippingRate.findOneAndUpdate(
+                { orderId: order.id },
+                {
+                    orderId: order.id,
+                    title: resp.title,
+                    price: resp.price,
+                    shippingRateHandle: resp.shippingRateHandle,
+                    discountAllocations: resp.discountAllocations
+                },
+                { upsert: true, new: true } 
+            );
+        }
 
           //Example respone:
           //order.id:  gid://shopify/Order/6052399480893

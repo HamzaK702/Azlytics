@@ -1,14 +1,15 @@
 import Order from "../models/BulkTables/BulkOrder/order.js";
 import Customer from "../models/BulkTables/BulkCustomer/customer.js";
+import aggregateTotalSales from "./salesService.js";
+import { calculateCOGS } from "./ordersService.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 
 export const calculateRepeatRateByCity = async () => {
-  // Calculate total customers by city
   const totalCustomersByCity = await Order.aggregate([
     {
       $match: {
-        customer: { $ne: null },  // Skip orders where customer is null
+        customer: { $ne: null }, 
       }
     },
     {
@@ -24,12 +25,10 @@ export const calculateRepeatRateByCity = async () => {
       }
     }
   ]);
-
-  // Calculate repeat customers by city
   const repeatCustomersByCity = await Order.aggregate([
     {
       $match: {
-        customer: { $ne: null },  // Skip orders where customer is null
+        customer: { $ne: null },  
       }
     },
     {
@@ -64,8 +63,6 @@ export const calculateRepeatRateByCity = async () => {
       }
     }
   ]);
-
-  // Calculate repeat rate by city
   return totalCustomersByCity.map((total) => {
     const repeat = repeatCustomersByCity.find(
       (r) => r.city === total.city
@@ -82,7 +79,74 @@ export const calculateRepeatRateByCity = async () => {
 
 
 export const calculateRepeatRateBySKU = async () => {
-  // Step 1: Flatten line items with SKU from Product model
+  const repeatRateData = await Order.aggregate([
+    { $unwind: "$lineItems" },
+    {
+      $lookup: {
+        from: "products",
+        localField: "lineItems.product.id",
+        foreignField: "id",
+        as: "productData"
+      }
+    },
+    { $unwind: "$productData" },
+    {
+      $match: {
+        "productData.variants": { $ne: [] }, 
+        "productData.variants.sku": { $ne: null } 
+      }
+    },
+    {
+      $group: {
+        _id: "$productData.variants.sku",
+        totalCustomers: { $addToSet: "$customer.id" },
+        repeatCustomers: {
+          $addToSet: {
+            $cond: [{ $gt: ["$customer.numberOfOrders", 1] }, "$customer.id", null]
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        SKU: "$_id",
+        totalCustomersCount: { $size: "$totalCustomers" },
+        repeatCustomersCount: {
+          $size: {
+            $filter: {
+              input: "$repeatCustomers",
+              as: "customerId",
+              cond: { $ne: ["$$customerId", null] }
+            }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        repeatRate: {
+          $multiply: [
+            { $divide: ["$repeatCustomersCount", "$totalCustomersCount"] },
+            100
+          ]
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        SKU: 1,
+        totalCustomersCount: 1,
+        repeatCustomersCount: 1,
+        repeatRate: 1
+      }
+    }
+  ]);
+
+  return repeatRateData;
+};
+
+export const calculateRepeatRateByProduct = async () => {
   const flattenedLineItems = await Order.aggregate([
     { $unwind: "$lineItems" },
     {
@@ -97,26 +161,26 @@ export const calculateRepeatRateBySKU = async () => {
     {
       $project: {
         customerId: "$customer.id",
-        sku: "$productData.variants.sku"
+        productId: "$productData.id",
+        productTitle: "$productData.title"
       }
     }
   ]);
-
-  // Total number of customers who purchased each product (SKU)
-  const totalCustomersBySKU = flattenedLineItems.reduce((acc, item) => {
-    if (!acc[item.sku]) acc[item.sku] = new Set();
-    acc[item.sku].add(item.customerId);
+  const totalCustomersByProduct = flattenedLineItems.reduce((acc, item) => {
+    const productKey = `${item.productId}-${item.productTitle}`;
+    if (!acc[productKey]) acc[productKey] = new Set();
+    acc[productKey].add(item.customerId);
     return acc;
   }, {});
-
-  // Convert to an array format for easier processing
-  const totalCustomers = Object.entries(totalCustomersBySKU).map(([sku, customerSet]) => ({
-    SKU: sku,
-    totalCustomers: customerSet.size
-  }));
-
-  // Number of repeat customers who purchased each product
-  const repeatCustomersBySKU = await Order.aggregate([
+  const totalCustomers = Object.entries(totalCustomersByProduct).map(([productKey, customerSet]) => {
+    const [productId, productTitle] = productKey.split("-");
+    return {
+      productId,
+      productTitle,
+      totalCustomersCount: customerSet.size
+    };
+  });
+  const repeatCustomersByProduct = await Order.aggregate([
     { $unwind: "$lineItems" },
     {
       $lookup: {
@@ -143,33 +207,30 @@ export const calculateRepeatRateBySKU = async () => {
     },
     {
       $group: {
-        _id: "$productData.variants.sku",
+        _id: {
+          productId: "$productData.id",
+          productTitle: "$productData.title"
+        },
         repeatCustomers: { $addToSet: "$customer.id" }
       }
     },
     {
       $project: {
-        SKU: "$_id",
-        repeatCustomers: { $size: "$repeatCustomers" }
+        productId: "$_id.productId",
+        productTitle: "$_id.productTitle",
+        repeatCustomersCount: { $size: "$repeatCustomers" }
       }
     }
   ]);
-
-  // Convert to an array format for easier processing
-  const repeatCustomers = repeatCustomersBySKU.map(({ SKU, repeatCustomers }) => ({
-    SKU,
-    repeatCustomers
-  }));
-
-  // Calculate repeat rate by SKU
   return totalCustomers.map((total) => {
-    const repeat = repeatCustomers.find((r) => r.SKU === total.SKU);
-    const repeatCustomersCount = repeat ? repeat.repeatCustomers : 0;
+    const repeat = repeatCustomersByProduct.find((r) => r.productId === total.productId);
+    const repeatCustomersCount = repeat ? repeat.repeatCustomersCount : 0;
     return {
-      SKU: total.SKU,
-      totalCustomers: total.totalCustomers,
-      repeatCustomers: repeatCustomersCount,
-      repeatRate: (repeatCustomersCount / total.totalCustomers) * 100
+      productId: total.productId,
+      productTitle: total.productTitle,
+      totalCustomersCount: total.totalCustomersCount,
+      repeatCustomersCount: repeatCustomersCount,
+      repeatRate: (repeatCustomersCount / total.totalCustomersCount) * 100
     };
   });
 };
@@ -177,7 +238,8 @@ export const calculateRepeatRateBySKU = async () => {
 
 
 export const calculateCustomerStickiness = async () => {
-    // Step 1: Extract customer orders with sequence numbers
+  try {
+    // Step 1: Extract customerId and createdAt date from Orders
     const customerOrders = await Order.aggregate([
       {
         $match: {
@@ -229,10 +291,7 @@ export const calculateCustomerStickiness = async () => {
         }
       }
     ]);
-  
-    // Debugging: Log customerOrders to verify results
-    console.log("Customer Orders:", customerOrders);
-  
+
     // Step 2: Count the number of customers at each order sequence level
     const stickinessCounts = customerOrders.reduce((acc, item) => {
       const { orderSequence, customerId } = item;
@@ -242,99 +301,96 @@ export const calculateCustomerStickiness = async () => {
       }
       return acc;
     }, {});
-  
+
     // Convert to array format for easier processing
     const stickinessData = Object.entries(stickinessCounts).map(([orderSequence, customerSet]) => ({
       orderSequence: parseInt(orderSequence, 10),
       numberOfCustomers: customerSet.size
     }));
-  
-    // Debugging: Log stickinessData to verify results
-    console.log("Stickiness Data:", stickinessData);
-  
-    return {
-      stickinessData,
-      customerOrders // Include customerOrders with createdAt and customerId
-    };
-  };
+
+    // Return the stickiness data
+    return { stickinessData };
+
+  } catch (error) {
+    console.error("Error calculating customer stickiness:", error);
+    throw new Error("Failed to calculate customer stickiness.");
+  }
+};
 
 
-  export const getRetentionCurve = async () => {
-    try {
-      const orders = await Order.aggregate([
-        {
-          $match: {
-            customer: { $ne: null } 
-          }
+
+export const getRetentionCurve = async () => {
+  try {
+    const orders = await Order.aggregate([
+      {
+        $match: {
+          customer: { $ne: null }, 
         },
-        {
-          $sort: {
-            'customer.id': 1, 
-            createdAt: 1 
-          }
-        }
-      ]);
-  
-      if (orders.length === 0) return []; 
-  
-      const firstPurchaseMap = new Map();
-      orders.forEach(order => {
-        const customerId = order.customer.id;
-        if (!firstPurchaseMap.has(customerId)) {
-          firstPurchaseMap.set(customerId, order.createdAt);
-        }
+      },
+      {
+        $sort: {
+          'customer.id': 1,
+          createdAt: 1, 
+        },
+      },
+    ]);
+    if (orders.length === 0) return [];
+    const firstPurchaseMap = new Map();
+    orders.forEach(order => {
+      const customerId = order.customer.id;
+      if (!firstPurchaseMap.has(customerId)) {
+        firstPurchaseMap.set(customerId, order.createdAt);
+      }
+    });
+    const retentionData = [];
+    orders.forEach(order => {
+      const customerId = order.customer.id;
+      const firstPurchaseDate = firstPurchaseMap.get(customerId);
+      const daysSinceFirstPurchase = Math.floor((order.createdAt - firstPurchaseDate) / (1000 * 60 * 60 * 24)); 
+      const orderSequence = retentionData.filter(data => data.customerId === customerId).length + 1;
+
+      retentionData.push({
+        customerId,
+        daysSinceFirstPurchase,
+        orderSequence,
       });
-  
-      const retentionData = [];
-      orders.forEach(order => {
-        const customerId = order.customer.id;
-        const firstPurchaseDate = firstPurchaseMap.get(customerId);
-        const daysSinceFirstPurchase = Math.floor((order.createdAt - firstPurchaseDate) / (1000 * 60 * 60 * 24)); 
-        const orderSequence = retentionData.filter(data => data.customerId === customerId).length + 1;
-  
-        retentionData.push({
-          customerId,
-          daysSinceFirstPurchase,
-          orderSequence,
-        });
+    });
+    const retentionRates = {};
+    const firstOrderCount = Array.from(firstPurchaseMap.keys()).length; 
+
+    retentionData.forEach(data => {
+      const key = `${data.orderSequence}_${data.daysSinceFirstPurchase}`;
+      if (!retentionRates[key]) retentionRates[key] = 0;
+      retentionRates[key] += 1;
+    });
+    const result = [];
+    Object.keys(retentionRates).forEach(key => {
+      const [orderSequence, daysSinceFirstPurchase] = key.split('_').map(Number);
+      const retentionRate = (retentionRates[key] / firstOrderCount) * 100;
+
+      result.push({
+        orderSequence,
+        daysSinceFirstPurchase,
+        retentionRate,
       });
-      const retentionRates = {};
-      const firstOrderCount = Array.from(firstPurchaseMap.keys()).length; 
-  
-      retentionData.forEach(data => {
-        const key = `${data.orderSequence}_${data.daysSinceFirstPurchase}`;
-        if (!retentionRates[key]) retentionRates[key] = 0;
-        retentionRates[key] += 1;
-      });
-      const result = [];
-      Object.keys(retentionRates).forEach(key => {
-        const [orderSequence, daysSinceFirstPurchase] = key.split('_').map(Number);
-        const retentionRate = (retentionRates[key] / firstOrderCount) * 100; // Calculate percentage
-  
-        result.push({
-          orderSequence,
-          daysSinceFirstPurchase,
-          retentionRate,
-        });
-      });
-      result.sort((a, b) => {
-        if (a.orderSequence === b.orderSequence) {
-          return a.daysSinceFirstPurchase - b.daysSinceFirstPurchase;
-        }
-        return a.orderSequence - b.orderSequence;
-      });
-  
-      return result;
-    } catch (error) {
-      console.error('Error in getRetentionCurve:', error);
-      throw new Error('Error analyzing customer retention');
-    }
-  };
-  
+    });
+    result.sort((a, b) => {
+      if (a.orderSequence === b.orderSequence) {
+        return a.daysSinceFirstPurchase - b.daysSinceFirstPurchase;
+      }
+      return a.orderSequence - b.orderSequence;
+    });
+    return result;
+  } catch (error) {
+    console.error('Error in getRetentionCurve:', error);
+    throw new Error('Error analyzing customer retention');
+  }
+};
 
 
   
-  export const getRetentionChart = async (period) => {
+
+export const getRetentionChart = async (period) => {
     try {
       const validPeriods = ['daily', 'weekly', 'monthly'];
       if (!validPeriods.includes(period)) {
@@ -427,6 +483,11 @@ export const calculateCustomerStickiness = async () => {
       const now = new Date();
       const cityCohorts = await Order.aggregate([
         {
+          $match: {
+            'shippingAddress.city': { $ne: null } 
+          }
+        },
+        {
           $group: {
             _id: '$shippingAddress.city',
             totalCustomers: { $sum: 1 },
@@ -439,9 +500,12 @@ export const calculateCustomerStickiness = async () => {
           }
         }
       ]);
-  
-      // Step 2: Get all orders and their details
       const orders = await Order.aggregate([
+        {
+          $match: {
+            'shippingAddress.city': { $ne: null }  
+          }
+        },
         {
           $project: {
             customerId: '$customer.id',
@@ -450,8 +514,6 @@ export const calculateCustomerStickiness = async () => {
           }
         }
       ]);
-  
-      // Convert orders to a more usable format for further processing
       const orderMap = {};
       orders.forEach(order => {
         if (!orderMap[order.customerId]) {
@@ -459,8 +521,6 @@ export const calculateCustomerStickiness = async () => {
         }
         orderMap[order.customerId].push(order);
       });
-  
-      // Step 3: Calculate retention rates for each city cohort
       const retentionData = cityCohorts.map(cohort => {
         const { _id: city, totalCustomers, customers } = cohort;
         const customersMap = new Map(customers.map(c => [c.customerId, c.firstOrderDate]));
@@ -503,10 +563,15 @@ export const calculateCustomerStickiness = async () => {
     try {
       const now = new Date();
   
-      // Step 1: Extract customer addresses and group by state
+      // Step 1: Extract customer addresses and group by state, excluding null states
       const customers = await Customer.aggregate([
         {
           $unwind: '$addresses'
+        },
+        {
+          $match: {
+            'addresses.province': { $ne: null }  // Exclude null states
+          }
         },
         {
           $group: {
@@ -514,7 +579,7 @@ export const calculateCustomerStickiness = async () => {
               customerId: '$id',
               state: '$addresses.province'
             },
-            firstOrderDate: { $min: '$createdAt' } // Assuming first order date can be taken from the customer creation date
+            firstOrderDate: { $min: '$createdAt' }  // Assuming first order date can be taken from the customer creation date
           }
         }
       ]);
@@ -574,7 +639,7 @@ export const calculateCustomerStickiness = async () => {
   
           return {
             days,
-            rate: retentionRate.toFixed(2) // Round to two decimal places
+            rate: retentionRate.toFixed(2)  // Round to two decimal places
           };
         });
   
@@ -590,6 +655,7 @@ export const calculateCustomerStickiness = async () => {
       throw error;
     }
   };
+  
 
 
 
@@ -789,6 +855,85 @@ export const getAovBreakdown = async () => {
     throw error;
   }
 };
+
+
+
+export const calculateLTV = async () => {
+    // Step 1: Calculate Average Order Value (AOV)
+    const totalOrderValue = await Order.aggregate([
+        { $group: { _id: null, totalPriceSum: { $sum: { $toDouble: "$totalPrice"} }, orderCount: { $sum: 1 } } }
+    ]);
+
+    // Handle cases where no orders are found
+    const AOV = totalOrderValue.length > 0 ? totalOrderValue[0].totalPriceSum / totalOrderValue[0].orderCount : 0;
+    console.log(AOV , "aov");
+
+    // Step 2: Calculate Purchase Frequency
+    const orderCount = await Order.countDocuments();
+    const customerCount = await Customer.countDocuments();
+    const purchaseFrequency = customerCount > 0 ? orderCount / customerCount : 0;
+    console.log(purchaseFrequency , "purchaseFrequency");
+
+    // Step 3: Calculate Customer Lifespan
+    const customers = await Customer.find().lean();
+    let totalLifespan = 0;
+
+    for (const customer of customers) {
+        const firstOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: 1 });
+        const lastOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: -1 });
+
+        if (firstOrder && lastOrder) {
+            const lifespan = (lastOrder.createdAt - firstOrder.createdAt) / (1000 * 60 * 60 * 24); // lifespan in days
+            totalLifespan += lifespan;
+        }
+    }
+    const averageLifespan = customers.length > 0 ? totalLifespan / customers.length : 0;
+    console.log(averageLifespan , "averageLifespan");
+
+    // Step 4: Calculate Gross Margin
+    const totalSales = await Order.aggregate([
+        { $group: { _id: null, totalSales: { $sum: {$toDouble:"$totalPrice"} } } }
+    ]);
+
+    // Handle cases where no sales are found
+    const totalSalesValue = totalSales.length > 0 ? totalSales[0].totalSales : 0;
+    console.log(totalSalesValue , "totalSalesValue");
+
+    const totalCOGS = await Order.aggregate([
+        { $unwind: "$lineItems" },
+        {
+            $lookup: {
+                from: "products",
+                localField: "lineItems.productId",
+                foreignField: "_id",
+                as: "productDetails"
+            }
+        },
+        { $unwind: "$productDetails" },
+        {
+            $group: {
+                _id: null,
+                totalCOGS: { $sum: { $multiply: ["$productDetails.cost_price", "$lineItems.quantity"] } }
+            }
+        }
+    ]);
+
+    // Handle cases where no COGS data is found
+    const totalCOGSValue = totalCOGS.length > 0 ? totalCOGS[0].totalCOGS : 0;
+
+    // Avoid division by zero in gross margin calculation
+    const grossMargin = totalSalesValue > 0 ? (totalSalesValue - totalCOGSValue) / totalSalesValue : 0;
+    console.log(grossMargin , "grossMargin");
+
+    // Step 5: Calculate LTV
+    const LTV = AOV * purchaseFrequency * averageLifespan * grossMargin;
+
+    return LTV;
+};
+
+
+
+
 
 
 

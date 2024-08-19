@@ -1,18 +1,32 @@
-import express from 'express';
-import { getRepeatRateByCity , getRepeatRateBySKU  , getCustomerStickiness , getRetentionRates, fetchCityBreakdown , fetchRegionBreakdown , fetchProductBreakdown , fetchAovBreakdown , getRetentionChartData } from '../controllers/retentionController.js';
+import express from "express";
+import {
+  getRepeatRateByCity,
+  getRepeatRateBySKU,
+  getCustomerStickiness,
+  getRetentionRates,
+  fetchCityBreakdown,
+  fetchRegionBreakdown,
+  fetchProductBreakdown,
+  fetchAovBreakdown,
+  getRetentionChartData,
+  getRepeatRateByProduct,
+  fetchLTV
+  
+} from "../controllers/retentionController.js";
 
 const router = express.Router();
 
-router.get('/repeat-rate/city', getRepeatRateByCity);
-router.get('/repeat-rate/sku', getRepeatRateBySKU);
-router.get('/customer-stickiness', getCustomerStickiness);
-router.get('/retention-rates', getRetentionRates);
-router.get('/retention-chart', getRetentionChartData);
-router.get('/rentention-city', fetchCityBreakdown);
-router.get('/rentention-region', fetchRegionBreakdown);
-router.get('/rentention-product', fetchProductBreakdown);
-router.get('/rentention-aov', fetchAovBreakdown);
-
+router.get("/repeat-rate/city", getRepeatRateByCity);
+router.get("/repeat-rate/sku", getRepeatRateBySKU);
+router.get("/repeat-rate/product", getRepeatRateByProduct);
+router.get("/customer-stickiness", getCustomerStickiness);
+router.get("/retention-rates", getRetentionRates);
+router.get("/retention-chart", getRetentionChartData);
+router.get("/retention-city", fetchCityBreakdown);
+router.get("/retention-region", fetchRegionBreakdown);
+router.get("/retention-product", fetchProductBreakdown);
+router.get("/retention-aov", fetchAovBreakdown);
+router.get("/ltv", fetchLTV);
 
 
 export default router;

@@ -7,6 +7,8 @@ import { getRegionBreakdown } from '../services/retentionService.js';
 import { getProductTitleBreakdown } from '../services/retentionService.js';
 import { getAovBreakdown } from '../services/retentionService.js';
 import { getRetentionChart } from '../services/retentionService.js';
+import { calculateRepeatRateByProduct } from '../services/retentionService.js';
+import { calculateLTV } from '../services/retentionService.js';
 
 export const getRepeatRateByCity = async (req, res) => {
   try {
@@ -23,6 +25,24 @@ export const getRepeatRateBySKU = async (req, res) => {
       res.json(repeatRateBySKU);
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  };
+
+  export const getRepeatRateByProduct= async (req, res) => {
+    try {
+      const repeatRateData = await calculateRepeatRateByProduct();
+  
+      return res.status(200).json({
+        success: true,
+        data: repeatRateData,
+      });
+    } catch (error) {
+      console.error('Error calculating repeat rate by product:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'An error occurred while calculating the repeat rate by product.',
+        error: error.message,
+      });
     }
   };
 
@@ -135,5 +155,14 @@ export const fetchAovBreakdown = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+export const fetchLTV = async (req, res) => {
+  try {
+    const LTV = await calculateLTV();
+    res.status(200).json({ LTV });
+} catch (error) {
+    res.status(500).json({ error: error.message });
+}
 };
 

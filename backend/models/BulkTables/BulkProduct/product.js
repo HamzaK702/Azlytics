@@ -16,6 +16,8 @@ const ProductVariantSchema = new Schema({
   },
   legacyResourceId: { type: String },
   price: { type: String },
+  costPrice: { type: String, default: '0.00' },
+  userPrice: { type: String, default: '0.00' }, 
   product: { id: { type: String } },
   requiresShipping: { type: Boolean },
   selectedOptions: [{ type: Schema.Types.Mixed }],

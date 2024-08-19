@@ -18,6 +18,7 @@ import customerAnalyticRoutes from "./routes/customerAnalyticRoutes.js";
 import { ShopifyService } from "./services/ShopifyService.js";
 import googleAdAuthRoutes from './routes/googleAdRoutes.js';
 import facebookRoutes from "./routes/facebookRoutes.js"
+import Product from "./models/BulkTables/BulkProduct/product.js";
 
 
 /* CONFIGURATIONS */
@@ -70,11 +71,6 @@ app.use('/api', ordersRoutes);
 app.use('/api' , salesRoutes );
 app.use('/api' , retentionRoutes);
 app.use('/api' , customerAnalyticRoutes);
-
-
-
-
-
 
 
 /* DATABASE CONNECTION AND SERVER SETUP */
