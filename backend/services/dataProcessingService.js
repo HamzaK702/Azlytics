@@ -153,6 +153,8 @@ export const saveOrderData = async (bulkData , userShopId , shopName ) => {
   export const saveProductData = async (bulkData , userShopId , shopName ) => {
     try {
       for (const item of bulkData) {
+        console.log(item)
+
         if (item && item.id && item.id.startsWith('gid://shopify/Product')) {
           // Find the product by ID
           let product = await Product.findOne({ id: item.id });

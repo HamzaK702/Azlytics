@@ -22,10 +22,7 @@ export class ShopifyController {
             try {
                 const accessToken = await ShopifyService.getAccessToken(shop, code);
                 console.log(shop, hmac, code)
-                console.log("We received a token: " + accessToken)
-                res.status(200).send('Success, token: ' + accessToken);
                
-                const userId = req.user._id;
                const result  = await UserShop.findOneAndUpdate(
                 {userId , shop},
                 {token:accessToken},
@@ -34,6 +31,8 @@ export class ShopifyController {
                console.log("UserShop entry processed:", result);
         
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
+                console.log("We received a token: " + accessToken)
+                res.status(200).send('Success, token: ' + accessToken);
 
             } catch (error) {
                 res.status(500).send('Error getting Shopify access token: ' + error.message);

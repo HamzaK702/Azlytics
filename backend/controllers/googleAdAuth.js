@@ -2,6 +2,7 @@
 
 import { getAuthUrl, getToken } from '../services/googleAdAuthService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
+import { listAccessibleCustomers } from '../services/googleAccessibleCustomers.js'; 
 
 export const getGoogleAuthUrl = (req, res) => {
   const userId = req.query.userId
@@ -26,6 +27,14 @@ export const handleGoogleAuthCallback =  (req, res) => {
   
       console.log('Access token and other details:', token);
       const userId = decodeURIComponent(state);
+      const refreshToken = token.refresh_token; 
+
+      //TODO: WE NEED TO MODIFY THE FUNCTION BELOW TO INSTEAD HIT THE API URL https://googleads.googleapis.com/v17/customers:listAccessibleCustomers
+      //HEADERS AUTHORIZATION BEARER {ACCESS TOKEN}, DEVELOPER-TOKEN {AD MANAGER TOKEN IN ENV}
+      // await listAccessibleCustomers(refreshToken)
+      //     .then(customers => console.log('Accessible Customers:', customers))
+      //     .catch(error => console.error('Error:', error));
+
       try{
         const existingUser = await UserAdAccount.findOne({ userId});
         if (existingUser) {
@@ -40,6 +49,7 @@ export const handleGoogleAuthCallback =  (req, res) => {
         });
         await newUserAdAccount.save();
 
+        
         res.json({
           message: 'Google authentication successful',
           userId,
