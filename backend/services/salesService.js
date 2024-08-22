@@ -3,6 +3,7 @@ import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
 import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
 import MetaAdInsights from "./../models/metaAdInsightModel.js";
 import Product from "./../models/BulkTables/BulkProduct/product.js";
+import moment from "moment";
 
 // Aggregates total sales by date
 const aggregateTotalSales = () => {
@@ -421,6 +422,162 @@ const calculateTotalAdSpend = async () => {
 };
 
 
+const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDate) => {
+  try {
+    const now = new Date();
+    let startDate;
+    let endDate;
+
+    // Set start and end dates based on filter
+    if (filter === 'yesterday') {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 1);
+      endDate = startDate;
+    } else if (filter === 'one_week') {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 7);
+      endDate = now;
+    } else if (filter === 'one_month') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 1);
+      endDate = now;
+    } else if (filter === 'three_months') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 3);
+      endDate = now;
+    } else if (filter === 'six_months') {
+      startDate = new Date(now);
+      startDate.setMonth(now.getMonth() - 6);
+      endDate = now;
+    } else if (filter === 'twelve_months') {
+      startDate = new Date(now);
+      startDate.setFullYear(now.getFullYear() - 1);
+      endDate = now;
+    } else if (filter === 'custom_date_range') {
+      if (!customStartDate || !customEndDate) {
+        throw new Error('Custom start and end dates are required for custom_date_range filter');
+      }
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+    } else {
+      throw new Error('Invalid filter specified');
+    }
+
+    // Calculate the difference in days between start and end date
+    const dayDifference = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    // Define grouping format
+    let groupBy;
+    if (dayDifference <= 31) {
+      groupBy = {
+        $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
+      };
+    } else if (dayDifference <= 90 && dayDifference > 31) {
+      groupBy = {
+        $dateToString: { format: "%Y-%U", date: { $dateFromString: { dateString: "$date" } } }
+      };
+    } else {
+      groupBy = {
+        $dateToString: { format: "%Y-%m", date: { $dateFromString: { dateString: "$date" } } }
+      };
+    }
+
+    // Convert dates to string format "YYYY-MM-DD"
+    const startDateString = startDate.toISOString().split('T')[0];
+    const endDateString = endDate.toISOString().split('T')[0];
+
+    console.log('Start Date:', startDateString);
+    console.log('End Date:', endDateString);
+    console.log('dayDIFFERENCE:', dayDifference);
+    console.log('Group By:', groupBy.$dateToString.date?.$dateFromString);
+
+    // Fetch total ad spend (regardless of date filter)
+    const totalAdSpend = await MetaAdInsights.aggregate([
+      { $unwind: "$insights" }, // Unwind the insights array
+      {
+        $group: {
+          _id: null,
+          totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
+        },
+      },
+    ]);
+
+    // Fetch ad spend based on date filter
+    const adSpendByDate = await MetaAdInsights.aggregate([
+      { $unwind: "$insights" }, // Unwind the insights array
+      {
+        $match: {
+          date: { $gte: startDateString, $lte: endDateString },
+        },
+      },
+      {
+        $project: {
+          date: groupBy,
+          spend: { $toDouble: "$insights.spend" } // Access spend from insights array
+        }
+      },
+      {
+        $group: {
+          _id: "$date",
+          totalSpendByDate: { $sum: "$spend" }
+        }
+      },
+      {
+        $sort: { _id: 1 } // Sort by date ascending
+      }
+    ]);
+
+    // Generate a list of all periods within the range
+    const generateAllPeriods = () => {
+      const periods = [];
+      let currentDate = moment(startDate);
+      const endDateMoment = moment(endDate);
+
+      if (dayDifference <= 31) {
+        // Day-wise
+        while (currentDate <= endDateMoment) {
+          periods.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
+          currentDate.add(1, 'day');
+        }
+      } else if (dayDifference <= 90 && dayDifference > 31) {
+        // Week-wise
+        while (currentDate <= endDateMoment) {
+          periods.push({ date: currentDate.format("YYYY-MM[W]WW"), spend: 0 });
+          currentDate.add(1, 'week');
+        }
+      } else {
+        // Month-wise
+        while (currentDate <= endDateMoment) {
+          periods.push({ date: currentDate.format("YYYY-MM"), spend: 0 });
+          currentDate.add(1, 'month');
+        }
+      }
+
+      return periods;
+    };
+
+    // Map ad spend data to the periods
+    const allPeriods = generateAllPeriods();
+    adSpendByDate.forEach(item => {
+      const period = allPeriods.find(p => p.date === item._id);
+      if (period) {
+        period.spend = item.totalSpendByDate;
+      }
+    });
+
+    return {
+      totalAdSpend: totalAdSpend[0]?.totalAdSpend || 0,
+      adSpendByDate: allPeriods,
+    };
+  } catch (error) {
+    console.error('Error in calculateTotalAdSpendByDate:', error.message);
+    throw error;
+  }
+};
+
+
+
+
 const calculateTotalSales = async () => {
   try {
     // Fetch all necessary data
@@ -630,6 +787,7 @@ export default {
   calculateTotalFees,
   calculateTotalShippingCost,
   calculateTotalAdSpend,
+  calculateTotalAdSpendByDate,
   calculateTotalSales,
   calculateGrossProfitBreakdown,
   calculateProductProfitability,

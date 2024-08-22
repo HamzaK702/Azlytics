@@ -10,6 +10,7 @@ import {
   getTotalFees,
   getTotalShippingCost,
   getTotalAdSpend,
+  getTotalAdSpendByDate,
   getTotalSales,
   getGrossProfitBreakdown,
   getProductProfitability,
@@ -29,6 +30,7 @@ router.get("/total-taxes", getTotalTaxes);
 router.get("/total-fees", getTotalFees);
 router.get("/total-shipping-cost", getTotalShippingCost);
 router.get("/total-ad-spend", getTotalAdSpend);
+router.get("/total-ad-spend-by-date", getTotalAdSpendByDate);
 router.get("/total-sales", getTotalSales);
 router.get("/gross-profit-breakdown", getGrossProfitBreakdown);
 router.get("/product-profitability", getProductProfitability);

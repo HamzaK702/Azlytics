@@ -98,6 +98,23 @@ export const getTotalAdSpend = async (req, res) => {
   }
 };
 
+export const getTotalAdSpendByDate = async (req, res) => {
+  try {
+    const { filter, customStartDate, customEndDate } = req.query;
+
+    if (filter === 'custom_date_range') {
+      if (!customStartDate || !customEndDate) {
+        return res.status(400).json({ error: 'Custom start and end dates are required for the custom_date_range filter' });
+      }
+    }
+
+    const result = await salesService.calculateTotalAdSpendByDate(filter, customStartDate, customEndDate);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in getAdSpend controller:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
 
 export const getTotalSales = async (req, res) => {
   try {
