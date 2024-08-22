@@ -539,7 +539,7 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
           periods.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
           currentDate.add(1, 'day');
         }
-      } else if (dayDifference <= 90 && dayDifference > 31) {
+      } else if (dayDifference <= 92 && dayDifference > 31) {
         // Week-wise
         while (currentDate <= endDateMoment) {
           periods.push({ date: currentDate.format("YYYY-MM[W]WW"), spend: 0 });
