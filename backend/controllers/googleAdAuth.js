@@ -34,38 +34,41 @@ export const handleGoogleAuthCallback =  (req, res) => {
       // await listAccessibleCustomers(refreshToken)
       //     .then(customers => console.log('Accessible Customers:', customers))
       //     .catch(error => console.error('Error:', error));
+      let customers;
+      try {
+        customers = await listAccessibleCustomers(token.access_token, userId);
+      } catch (error) {
+        res.status(500).json({ error: 'Error getting any Ad accounts with provided Google Account' });
+      }
 
       try{
-        const existingUser = await UserAdAccount.findOne({ userId});
-        if (existingUser) {
-          return res.status(400).json({
-            message: 'Google Ad Token already exists for this user.',
-          });
-        }
-        const newUserAdAccount = new UserAdAccount({
-          userId,
-          googleAdToken: token,
-          createdAt: Date.now(),
-        });
-        await newUserAdAccount.save();
-
         
-        res.json({
-          message: 'Google authentication successful',
-          userId,
-          token,
-        });
+        console.log('Accessible Customers:', customers);
+
+        const existingUser = await UserAdAccount.findOneAndUpdate(
+          { userId }, 
+          { 
+            userId,
+            googleAdToken: token,
+            createdAt: Date.now(),
+          },
+          { upsert: true, new: true } // upsert creates if not found, new returns the updated/created document
+        );
+        
+        if(!existingUser){
+          res.status(500).json({ error: 'Error storing token because of user' });
+        }
       }
       catch (error) {
       console.error('Error storing token:', error);
       res.status(500).json({ error: 'Error storing token' });
-
       }
          
       res.json({
         message: 'Google authentication successful',
         userId,
-        token
+        token,
+        customers: customers || null
       });
     });
   };
