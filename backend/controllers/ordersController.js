@@ -3,13 +3,19 @@ import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calcula
 
 export const ordersTrend = async (req, res) => {
   try {
-    const trends = await getOrdersTrend();
-    res.json(trends);
+    const filter = req.query.filter;
+    const customStartDate = req.query.customStartDate;
+    const customEndDate = req.query.customEndDate;
+
+    const ordersTrend = await getOrdersTrend(filter, customStartDate, customEndDate);
+
+    res.json(ordersTrend);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error fetching orders trend:', error);
+    res.status(500).json({ message: 'Error fetching orders trend' });
   }
 };
+
 
 export const getOrderTimeDifferences = async (req, res) => {
   try {

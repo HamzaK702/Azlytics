@@ -468,15 +468,11 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
 
     // Define grouping format
     let groupBy;
-    if (dayDifference <= 31) {
+    if (dayDifference <= 60) {
       groupBy = {
         $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
       };
-    } else if (dayDifference <= 90 && dayDifference > 31) {
-      groupBy = {
-        $dateToString: { format: "%Y-%U", date: { $dateFromString: { dateString: "$date" } } }
-      };
-    } else {
+    }  else {
       groupBy = {
         $dateToString: { format: "%Y-%m", date: { $dateFromString: { dateString: "$date" } } }
       };
@@ -533,17 +529,11 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
       let currentDate = moment(startDate);
       const endDateMoment = moment(endDate);
 
-      if (dayDifference <= 31) {
+      if (dayDifference <= 60) {
         // Day-wise
         while (currentDate <= endDateMoment) {
           periods.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
           currentDate.add(1, 'day');
-        }
-      } else if (dayDifference <= 90 && dayDifference > 31) {
-        // Week-wise
-        while (currentDate <= endDateMoment) {
-          periods.push({ date: currentDate.format("YYYY-MM[W]WW"), spend: 0 });
-          currentDate.add(1, 'week');
         }
       } else {
         // Month-wise

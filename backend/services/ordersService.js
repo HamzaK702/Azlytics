@@ -3,59 +3,170 @@ import Customer from "../models/BulkTables/BulkCustomer/customer.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
 import salesService from "./salesService.js";
 
-export const getOrdersTrend = async () => {
+export const getOrdersTrend = async (filter, customStartDate, customEndDate) => {
   try {
-    // Fetch all orders and customers
-    const orders = await Order.find();
-    const customers = await Customer.find();
+    const now = new Date();
+    let startDate;
+    let endDate;
 
-    // Convert data to a more accessible format
-    const customerMap = new Map();
-    customers.forEach((customer) => {
-      if (customer && customer.id) {
-        customerMap.set(customer.id, customer.createdAt);
+    // Set start and end dates based on filter
+    switch (filter) {
+      case 'yesterday':
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 1);
+        endDate = startDate;
+        break;
+      case 'one_week':
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+        endDate = now;
+        break;
+      case 'one_month':
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 1);
+        endDate = now;
+        break;
+      case 'three_months':
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 3);
+        endDate = now;
+        break;
+      case 'six_months':
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 6);
+        endDate = now;
+        break;
+      case 'twelve_months':
+        startDate = new Date(now);
+        startDate.setFullYear(now.getFullYear() - 1);
+        endDate = now;
+        break;
+      case 'custom_date_range':
+        if (!customStartDate || !customEndDate) {
+          throw new Error('Custom start and end dates are required for custom_date_range filter');
+        }
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+        break;
+      default:
+        throw new Error('Invalid filter specified');
+    }
+
+    // Convert start and end dates to ISO format for MongoDB query
+    const startDateISO = startDate.toISOString();
+    const endDateISO = endDate.toISOString();
+
+    // Calculate the day difference between startDate and endDate
+    const dayDifference = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    // Determine date format based on the day difference
+    const dateFormat = dayDifference <= 60 ? '%Y-%m-%d' : '%Y-%m';
+
+    // Aggregation pipeline for fetching and processing orders
+    const pipeline = [
+      // Match orders within the specified date range
+      {
+        $match: {
+          createdAt: { $gte: new Date(startDateISO), $lte: new Date(endDateISO) },
+        },
+      },
+      // Lookup to join with customers collection
+      {
+        $lookup: {
+          from: 'customers',
+          localField: 'customer',
+          foreignField: '_id',
+          as: 'customerDetails',
+        },
+      },
+      // Unwind customer details array
+      {
+        $unwind: { path: '$customerDetails', preserveNullAndEmptyArrays: true },
+      },
+      // Add fields to determine if the order is new or returning
+      {
+        $addFields: {
+          customerCreatedAt: { $ifNull: ['$customerDetails.createdAt', null] },
+          isNewCustomer: {
+            $cond: [
+              { $eq: ['$createdAt', '$customerDetails.createdAt'] },
+              true,
+              false,
+            ],
+          },
+        },
+      },
+      // Group by date or month based on the calculated difference
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          },
+          totalOrders: { $sum: 1 },
+          newCustomerOrders: { $sum: { $cond: ['$isNewCustomer', 1, 0] } },
+          returningCustomerOrders: { $sum: { $cond: [{ $not: ['$isNewCustomer'] }, 1, 0] } },
+        },
+      },
+      // Sort results by date
+      {
+        $sort: { '_id.date': 1 },
+      },
+      // Format the results
+      {
+        $project: {
+          _id: 0,
+          orderDate: '$_id.date',
+          totalOrders: 1,
+          newCustomerOrders: 1,
+          returningCustomerOrders: 1,
+        },
+      },
+    ];
+
+    // Execute the aggregation pipeline
+    const results = await Order.aggregate(pipeline);
+
+    // Create an array of all dates or months between start and end dates
+    const dateArray = [];
+    let currentDate = new Date(startDate);
+
+    if (dayDifference <= 60) {
+      // Day-wise date array
+      while (currentDate <= endDate) {
+        dateArray.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
       }
+    } else {
+      // Month-wise date array
+      while (currentDate <= endDate) {
+        const month = currentDate.getMonth() + 1; // Month is 0-indexed
+        const year = currentDate.getFullYear();
+        dateArray.push(`${year}-${month.toString().padStart(2, '0')}`);
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+    }
+
+    // Create a map from the results for easy look-up
+    const resultMap = results.reduce((acc, result) => {
+      acc[result.orderDate] = result;
+      return acc;
+    }, {});
+
+    // Fill in missing dates or months with zero values
+    const finalResults = dateArray.map((date) => {
+      return resultMap[date] || {
+        orderDate: date,
+        totalOrders: 0,
+        newCustomerOrders: 0,
+        returningCustomerOrders: 0,
+      };
     });
 
-    // Initialize data storage for the results
-    const results = {};
-
-    // Process each order
-    orders.forEach((order) => {
-      if (order.customer && order.customer.id) {
-        const orderDate = order.createdAt.toISOString().split("T")[0];
-        const customerCreatedAt = customerMap.get(order.customer.id);
-
-        if (!results[orderDate]) {
-          results[orderDate] = {
-            totalOrders: 0,
-            newCustomerOrders: 0,
-            returningCustomerOrders: 0,
-          };
-        }
-
-        // Increment total orders
-        results[orderDate].totalOrders += 1;
-
-        // Determine if the order is from a new or returning customer
-        if (
-          customerCreatedAt &&
-          order.createdAt.toISOString() === customerCreatedAt.toISOString()
-        ) {
-          results[orderDate].newCustomerOrders += 1;
-        } else {
-          results[orderDate].returningCustomerOrders += 1;
-        }
-      }
-    });
-
-    // Convert results to an array format for easier frontend handling
-    return Object.keys(results).map((date) => ({
-      orderDate: date,
-      ...results[date],
-    }));
+    // Return the final results
+    return finalResults;
   } catch (error) {
-    throw new Error("Error fetching orders trend");
+    console.error('Error fetching orders trend:', error.message);
+    throw new Error('Error fetching orders trend');
   }
 };
 
