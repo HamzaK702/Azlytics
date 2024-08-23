@@ -6,7 +6,10 @@ const userAdAccountSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-  googleAdToken: {
+  googleAdAccessToken: {
+    type: String,
+  },
+  googleAdRefreshToken: {
     type: String,
   },
   metaAccessToken: {
