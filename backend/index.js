@@ -19,6 +19,8 @@ import { ShopifyService } from "./services/ShopifyService.js";
 import googleAdAuthRoutes from './routes/googleAdRoutes.js';
 import facebookRoutes from "./routes/facebookRoutes.js"
 import Product from "./models/BulkTables/BulkProduct/product.js";
+import overHeadCostRoute from "./routes/overheadCostRoute.js";
+import productRoutes from "./routes/productRoutes.js";
 
 
 /* CONFIGURATIONS */
@@ -71,7 +73,8 @@ app.use('/api', ordersRoutes);
 app.use('/api' , salesRoutes );
 app.use('/api' , retentionRoutes);
 app.use('/api' , customerAnalyticRoutes);
-
+app.use('/api' , overHeadCostRoute);
+app.use('/api' , productRoutes);
 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;

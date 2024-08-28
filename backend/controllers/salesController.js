@@ -2,32 +2,44 @@ import salesService from "../services/salesService.js";
 
 export const getSalesTrends = async (req, res) => {
   try {
-    const trends = await salesService.getSalesTrends();
-    res.json(trends);
+    // Extract query parameters with default values
+    const { filter = 'one_month', customStartDate = null, customEndDate = null } = req.query;
+
+    // Fetch sales trends from service
+    const salesTrends = await salesService.getSalesTrends(filter, customStartDate, customEndDate);
+
+    // Send response
+    return res.json(salesTrends);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error in getSalesTrendsController:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
 
-export const getAOV = async (req, res) => {
+export const fetchAOV = async (req, res) => {
   try {
-    const aov = await salesService.getAOV();
-    res.json(aov);
+    const { filter, customStartDate, customEndDate } = req.query;
+
+    if (!filter) {
+      return res.status(400).json({ error: 'Filter parameter is required' });
+    }
+
+    const aovData = await salesService.getAOV(filter, customStartDate, customEndDate);
+    res.json(aovData);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error("Error calculating AOV:", error.message);
+    res.status(500).json({ error: 'Error calculating AOV' });
   }
 };
 
 export const getTopCities = async (req , res)=>{
-  try{
-    const topCities = await salesService.getTopCities();
-    res.json(topCities);
-  }
-  catch(error){
-    console.log(error);
-  res.status(500).json({ message: 'Internal Server Error' });
+  try {
+    const { filter, customStartDate, customEndDate } = req.query;
+    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate);
+    res.status(200).json(topCitiesData);
+  } catch (error) {
+    console.error('Error fetching top cities:', error.message);
+    res.status(500).json({ message: 'An error occurred while fetching top cities.' });
   }
 }
 

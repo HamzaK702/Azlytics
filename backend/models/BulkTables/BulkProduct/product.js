@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
+
 // Schema for Product Variants
 const ProductVariantSchema = new Schema({
   id: { type: String },
@@ -60,8 +61,9 @@ const ProductSchema = new Schema({
   updatedAt: { type: Date },
   variants: [ProductVariantSchema],
   userShopId: { type: Schema.Types.ObjectId, ref: 'UserShop' },  
-  shopName: String
+  shopName: String,
 }, { strict: false });
+
 
 const Product = mongoose.model('Product', ProductSchema);
 export default Product;

@@ -1,7 +1,7 @@
 import express from "express";
 import {
   getSalesTrends,
-  getAOV,
+  fetchAOV,
   getTopCities,
   getTopSKUs,
   getGrossSales,
@@ -21,7 +21,7 @@ import {
 const router = express.Router();
 
 router.get("/sales-trend", getSalesTrends);
-router.get("/aov", getAOV);
+router.get("/aovByDate", fetchAOV);
 router.get("/top-cities", getTopCities);
 router.get("/top-skus", getTopSKUs);
 router.get("/gross-sales", getGrossSales);

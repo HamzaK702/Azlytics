@@ -5,232 +5,474 @@ import MetaAdInsights from "./../models/metaAdInsightModel.js";
 import Product from "./../models/BulkTables/BulkProduct/product.js";
 import moment from "moment";
 
-// Aggregates total sales by date
-const aggregateTotalSales = () => {
-  return Order.aggregate([
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        totalSales: { $sum: { $toDouble: "$totalPrice" } }, // Ensure totalPrice is treated as a number
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        orderDate: "$_id",
-        totalSales: 1,
-      },
-    },
-  ]);
+
+
+const getDateRange = (filter, customStartDate, customEndDate) => {
+  const now = new Date();
+  let startDate;
+  let endDate;
+
+  // Set start and end dates based on filter
+  if (filter === 'yesterday') {
+    startDate = new Date(now);
+    startDate.setDate(now.getDate() - 1);
+    endDate = startDate;
+  } else if (filter === 'one_week') {
+    startDate = new Date(now);
+    startDate.setDate(now.getDate() - 7);
+    endDate = now;
+  } else if (filter === 'one_month') {
+    startDate = new Date(now);
+    startDate.setMonth(now.getMonth() - 1);
+    endDate = now;
+  } else if (filter === 'three_months') {
+    startDate = new Date(now);
+    startDate.setMonth(now.getMonth() - 3);
+    endDate = now;
+  } else if (filter === 'six_months') {
+    startDate = new Date(now);
+    startDate.setMonth(now.getMonth() - 6);
+    endDate = now;
+  } else if (filter === 'twelve_months') {
+    startDate = new Date(now);
+    startDate.setFullYear(now.getFullYear() - 1);
+    endDate = now;
+  } else if (filter === 'custom_date_range') {
+    if (!customStartDate || !customEndDate) {
+      throw new Error('Custom start and end dates are required for custom_date_range filter');
+    }
+    startDate = new Date(customStartDate);
+    endDate = new Date(customEndDate);
+  } else {
+    throw new Error('Invalid filter specified');
+  }
+
+  // Set the time for endDate to the end of the day
+  if (filter !== 'yesterday' && filter !== 'custom_date_range') {
+    endDate.setHours(23, 59, 59, 999);
+  }
+
+  return { startDate, endDate };
 };
 
-// Aggregates sales from new customers by date
-const aggregateNewCustomerSales = () => {
-  return Order.aggregate([
-    {
-      $lookup: {
-        from: "customers",
-        localField: "customer.id",
-        foreignField: "id",
-        as: "customer",
-      },
-    },
-    { $unwind: "$customer" },
-    {
-      $project: {
-        createdAt: 1,
-        totalPrice: { $toDouble: "$totalPrice" }, // Ensure totalPrice is treated as a number
-        isNewCustomer: {
-          $eq: [
-            { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            {
-              $dateToString: {
-                format: "%Y-%m-%d",
-                date: "$customer.createdAt",
-              },
-            },
-          ],
-        },
-      },
-    },
-    { $match: { isNewCustomer: true } },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        newCustomerSales: { $sum: "$totalPrice" },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        orderDate: "$_id",
-        newCustomerSales: 1,
-      },
-    },
-  ]);
+const generateDateArray = (startDate, endDate) => {
+  const dates = [];
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    dates.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return dates;
 };
 
-// Aggregates sales from returning customers by date
-const aggregateReturningCustomerSales = () => {
-  return Order.aggregate([
-    {
-      $lookup: {
-        from: "customers",
-        localField: "customer.id",
-        foreignField: "id",
-        as: "customer",
-      },
-    },
-    { $unwind: "$customer" },
-    {
-      $project: {
-        createdAt: 1,
-        totalPrice: { $toDouble: "$totalPrice" }, // Ensure totalPrice is treated as a number
-        isReturningCustomer: {
-          $gt: [
-            { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            {
-              $dateToString: {
-                format: "%Y-%m-%d",
-                date: "$customer.createdAt",
-              },
-            },
-          ],
-        },
-      },
-    },
-    { $match: { isReturningCustomer: true } },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-        returningCustomerSales: { $sum: "$totalPrice" },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        orderDate: "$_id",
-        returningCustomerSales: 1,
-      },
-    },
-  ]);
+const generateMonthArray = (startDate, endDate) => {
+  const months = [];
+  let currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    months.push(new Date(currentDate));
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    currentDate.setDate(1);
+  }
+
+  return months;
 };
+
+const aggregateTotalSales = async (startDate, endDate, groupBy) => {
+  const matchStage = {
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate,
+    },
+  };
+
+  const groupStage = {
+    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    totalSales: { $sum: { $toDouble: "$totalPrice" } },
+    totalOrders: { $sum: 1 },
+  };
+
+  const projectStage = {
+    _id: 0,
+    orderDate: "$_id",
+    totalSales: 1,
+    totalOrders: 1,
+  };
+
+  const totalSales = await Order.aggregate([
+    { $match: matchStage },
+    { $group: groupStage },
+    { $project: projectStage },
+  ]);
+
+  return totalSales;
+};
+
+const aggregateNewCustomerSales = async (startDate, endDate, groupBy) => {
+  const matchStage = {
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate,
+    },
+  };
+
+  const lookupStage = {
+    from: "customers",
+    localField: "customer.id",
+    foreignField: "id",
+    as: "customer",
+  };
+
+  const projectStage = {
+    createdAt: 1,
+    totalPrice: { $toDouble: "$totalPrice" },
+    isNewCustomer: {
+      $eq: [
+        { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        {
+          $dateToString: {
+            format: "%Y-%m-%d",
+            date: "$customer.createdAt",
+          },
+        },
+      ],
+    },
+  };
+
+  const matchNewCustomer = { $match: { isNewCustomer: true } };
+
+  const groupStage = {
+    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    newCustomerSales: { $sum: "$totalPrice" },
+    newCustomerOrders: { $sum: 1 },
+  };
+
+  const projectNewCustomer = {
+    _id: 0,
+    orderDate: "$_id",
+    newCustomerSales: 1,
+    newCustomerOrders: 1,
+  };
+
+  const newCustomerSales = await Order.aggregate([
+    { $match: matchStage },
+    { $lookup: lookupStage },
+    { $unwind: "$customer" },
+    { $project: projectStage },
+    matchNewCustomer,
+    { $group: groupStage },
+    { $project: projectNewCustomer },
+  ]);
+
+  return newCustomerSales;
+};
+
+const aggregateReturningCustomerSales = async (startDate, endDate, groupBy) => {
+  const matchStage = {
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate,
+    },
+  };
+
+  const lookupStage = {
+    from: "customers",
+    localField: "customer.id",
+    foreignField: "id",
+    as: "customer",
+  };
+
+  const projectStage = {
+    createdAt: 1,
+    totalPrice: { $toDouble: "$totalPrice" },
+    isReturningCustomer: {
+      $gt: [
+        { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        {
+          $dateToString: {
+            format: "%Y-%m-%d",
+            date: "$customer.createdAt",
+          },
+        },
+      ],
+    },
+  };
+
+  const matchReturningCustomer = { $match: { isReturningCustomer: true } };
+
+  const groupStage = {
+    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    returningCustomerSales: { $sum: "$totalPrice" },
+    returningCustomerOrders: { $sum: 1 },
+  };
+
+  const projectReturningCustomer = {
+    _id: 0,
+    orderDate: "$_id",
+    returningCustomerSales: 1,
+    returningCustomerOrders: 1,
+  };
+
+  const returningCustomerSales = await Order.aggregate([
+    { $match: matchStage },
+    { $lookup: lookupStage },
+    { $unwind: "$customer" },
+    { $project: projectStage },
+    matchReturningCustomer,
+    { $group: groupStage },
+    { $project: projectReturningCustomer },
+  ]);
+
+  return returningCustomerSales;
+};
+
+
 
 // Combines sales trends into a single dataset
-const getSalesTrends = async () => {
-  const [totalSales, newCustomerSales, returningCustomerSales] =
-    await Promise.all([
-      aggregateTotalSales(),
-      aggregateNewCustomerSales(),
-      aggregateReturningCustomerSales(),
-    ]);
+const getSalesTrends = async (filter, customStartDate, customEndDate) => {
+  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+  const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+  const groupBy = dayDiff <= 61 ? 'day' : 'month';
 
-  console.log("Total Sales:", totalSales);
-  console.log("New Customer Sales:", newCustomerSales);
-  console.log("Returning Customer Sales:", returningCustomerSales);
+  const [totalSales, newCustomerSales, returningCustomerSales] = await Promise.all([
+    aggregateTotalSales(startDate, endDate, groupBy),
+    aggregateNewCustomerSales(startDate, endDate, groupBy),
+    aggregateReturningCustomerSales(startDate, endDate, groupBy),
+  ]);
 
-  return totalSales.map((totalSale) => {
-    const newCustomerSale = newCustomerSales.find(
-      (nc) => nc.orderDate === totalSale.orderDate
-    ) || { newCustomerSales: 0 };
-    const returningCustomerSale = returningCustomerSales.find(
-      (rc) => rc.orderDate === totalSale.orderDate
-    ) || { returningCustomerSales: 0 };
+  const dateArray = groupBy === 'day'
+    ? generateDateArray(startDate, endDate)
+    : generateMonthArray(startDate, endDate);
 
-    return {
-      orderDate: totalSale.orderDate,
-      totalSales: totalSale.totalSales,
-      newCustomerSales: newCustomerSale.newCustomerSales,
-      returningCustomerSales: returningCustomerSale.returningCustomerSales,
-    };
+  const dateMap = new Map(dateArray.map(date => {
+    const dateKey = groupBy === 'day'
+      ? date.toISOString().split('T')[0]
+      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    return [dateKey, {
+      orderDate: dateKey,
+      totalSales: 0,
+      newCustomerSales: 0,
+      returningCustomerSales: 0
+    }];
+  }));
+
+  totalSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).totalSales = sale.totalSales;
+    }
   });
+
+  newCustomerSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).newCustomerSales = sale.newCustomerSales;
+    }
+  });
+
+  returningCustomerSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).returningCustomerSales = sale.returningCustomerSales;
+    }
+  });
+
+  return Array.from(dateMap.values());
 };
+
+
 
 // Computes the average order value (AOV) for each date
-const getAOV = async () => {
-  const [totalSales, newCustomerSales, returningCustomerSales] =
-    await Promise.all([
-      aggregateTotalSales(),
-      aggregateNewCustomerSales(),
-      aggregateReturningCustomerSales(),
-    ]);
+const getAOV = async (filter, customStartDate, customEndDate) => {
+  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+  const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+  const groupBy = dayDiff <= 61 ? 'day' : 'month';
 
-  console.log("Total Sales:", totalSales);
-  console.log("New Customer Sales:", newCustomerSales);
-  console.log("Returning Customer Sales:", returningCustomerSales);
+  const totalSales = await aggregateTotalSales(startDate, endDate, groupBy);
+  const newCustomerSales = await aggregateNewCustomerSales(startDate, endDate, groupBy);
+  const returningCustomerSales = await aggregateReturningCustomerSales(startDate, endDate, groupBy);
 
-  return totalSales.map((totalSale) => {
-    const newCustomerSale = newCustomerSales.find(
-      (nc) => nc.orderDate === totalSale.orderDate
-    ) || { newCustomerSales: 0, newCustomerOrders: 0 };
-    const returningCustomerSale = returningCustomerSales.find(
-      (rc) => rc.orderDate === totalSale.orderDate
-    ) || { returningCustomerSales: 0, returningCustomerOrders: 0 };
+  console.log('Total Sales:', totalSales);
+  console.log('New Customer Sales:', newCustomerSales);
+  console.log('Returning Customer Sales:', returningCustomerSales);
 
-    const combinedAOV = totalSale.totalSales / (totalSale.totalOrders || 1);
-    const newCustomerAOV =
-      newCustomerSale.newCustomerSales /
-      (newCustomerSale.newCustomerOrders || 1);
-    const returningCustomerAOV =
-      returningCustomerSale.returningCustomerSales /
-      (returningCustomerSale.returningCustomerOrders || 1);
+  let dateArray;
 
-    return {
-      orderDate: totalSale.orderDate,
-      combinedAOV,
-      newCustomerAOV,
-      returningCustomerAOV,
-    };
+  if (groupBy === 'day') {
+    dateArray = generateDateArray(startDate, endDate);
+  } else {
+    dateArray = generateMonthArray(startDate, endDate);
+  }
+
+  // Create a dateMap with all dates initialized to 0
+  const dateMap = new Map(dateArray.map(date => {
+    const dateKey = groupBy === 'day' ? date.toISOString().split('T')[0] : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    return [dateKey, {
+      orderDate: dateKey,
+      combinedAOV: 0,
+      newCustomerAOV: 0,
+      returningCustomerAOV: 0
+    }];
+  }));
+
+  // Update the map with data from totalSales
+  totalSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).combinedAOV = parseFloat((sale.totalSales / (sale.totalOrders || 1)).toFixed(2));
+    }
   });
+
+  // Update the map with data from newCustomerSales
+  newCustomerSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).newCustomerAOV = parseFloat((sale.newCustomerSales / (sale.newCustomerOrders || 1)).toFixed(2));
+    }
+  });
+
+  // Update the map with data from returningCustomerSales
+  returningCustomerSales.forEach(sale => {
+    const formattedDate = groupBy === 'day'
+      ? new Date(sale.orderDate).toISOString().split('T')[0]
+      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+    if (dateMap.has(formattedDate)) {
+      dateMap.get(formattedDate).returningCustomerAOV = parseFloat((sale.returningCustomerSales / (sale.returningCustomerOrders || 1)).toFixed(2));
+    }
+  });
+
+  // Return the final result
+  return Array.from(dateMap.values());
 };
 
-const getTopCities = async () => {
+
+
+
+
+const getTopCities = async (filter, customStartDate, customEndDate) => {
   try {
-    const orders = await Order.find(
-      {},
-      "createdAt customer.id shippingAddress.city"
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    const groupBy = dayDiff <= 61 ? 'day' : 'month';
+    const startDateISO = startDate.toISOString();
+    const endDateISO = endDate.toISOString();
+    const orders = await Order.find({
+      createdAt: { $gte: startDateISO, $lte: endDateISO },
+    },
+    "createdAt customer.id shippingAddress.city"
     ).populate("customer.id", "createdAt numberOfOrders");
+
     const customerData = await Customer.find({}, "id createdAt numberOfOrders");
 
     const cityData = {
       newCustomers: {},
       returningCustomers: {},
     };
-
     orders.forEach((order) => {
       if (!order.customer || !order.customer.id) return;
 
       const customer = customerData.find((c) => c.id === order.customer.id);
-      console.log("customer check", customer);
 
       if (customer) {
-        const isNewCustomer = customer.numberOfOrders === "1"; // Adjust based on your numberOfOrders field type
+        const isNewCustomer = customer.numberOfOrders === "1"; 
         const city = order.shippingAddress.city;
+        const date = new Date(order.createdAt);
+        const formattedDate = groupBy === 'day'
+          ? date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // Format date as YYYY-MM
 
         if (isNewCustomer) {
-          if (!cityData.newCustomers[city]) cityData.newCustomers[city] = 0;
-          cityData.newCustomers[city]++;
+          if (!cityData.newCustomers[formattedDate]) cityData.newCustomers[formattedDate] = {};
+          if (!cityData.newCustomers[formattedDate][city]) cityData.newCustomers[formattedDate][city] = 0;
+          cityData.newCustomers[formattedDate][city]++;
         } else {
-          if (!cityData.returningCustomers[city])
-            cityData.returningCustomers[city] = 0;
-          cityData.returningCustomers[city]++;
+          if (!cityData.returningCustomers[formattedDate]) cityData.returningCustomers[formattedDate] = {};
+          if (!cityData.returningCustomers[formattedDate][city]) cityData.returningCustomers[formattedDate][city] = 0;
+          cityData.returningCustomers[formattedDate][city]++;
         }
       }
     });
+    const generateDateOrMonthArray = (startDate, endDate, groupBy) => {
+      const results = [];
+      let currentDate = new Date(startDate);
+      
+      while (currentDate <= endDate) {
+        results.push(new Date(currentDate));
+        if (groupBy === 'day') {
+          currentDate.setDate(currentDate.getDate() + 1);
+        } else {
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          currentDate.setDate(1); 
+        }
+      }
 
-    const rankedNewCustomers = Object.entries(cityData.newCustomers)
-      .sort((a, b) => b[1] - a[1])
-      .map(([city, count]) => ({ city, count }));
+      return results;
+    };
 
-    const rankedReturningCustomers = Object.entries(cityData.returningCustomers)
-      .sort((a, b) => b[1] - a[1])
-      .map(([city, count]) => ({ city, count }));
+    const allPeriods = generateDateOrMonthArray(startDate, endDate, groupBy);
+    const initializeCityData = (data) => {
+      return allPeriods.reduce((acc, date) => {
+        const dateKey = groupBy === 'day'
+          ? date.toISOString().split('T')[0]
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        acc[dateKey] = acc[dateKey] || {};
+        return acc;
+      }, data);
+    };
+
+    const initializedNewCustomers = initializeCityData({});
+    const initializedReturningCustomers = initializeCityData({});
+    const mergeCityData = (actualData, initializedData) => {
+      for (const [date, cities] of Object.entries(actualData)) {
+        if (!initializedData[date]) initializedData[date] = {};
+        for (const [city, count] of Object.entries(cities)) {
+          initializedData[date][city] = count;
+        }
+      }
+      return initializedData;
+    };
+
+    const mergedNewCustomers = mergeCityData(cityData.newCustomers, initializedNewCustomers);
+    const mergedReturningCustomers = mergeCityData(cityData.returningCustomers, initializedReturningCustomers);
+    const formatCityData = (cityData) => {
+      const result = [];
+      for (const [date, cities] of Object.entries(cityData)) {
+        const rankedCities = Object.entries(cities)
+          .sort((a, b) => b[1] - a[1])
+          .map(([city, count]) => ({ city, count }));
+        result.push({ date, cities: rankedCities });
+      }
+      return result.sort((a, b) => new Date(a.date) - new Date(b.date));
+    };
+
+    const rankedNewCustomers = formatCityData(mergedNewCustomers);
+    const rankedReturningCustomers = formatCityData(mergedReturningCustomers);
 
     return { rankedNewCustomers, rankedReturningCustomers };
   } catch (error) {
     throw new Error(error.message);
   }
 };
+
+
+
+
 
 const getTopSKUs = async () => {
   try {
@@ -426,39 +668,34 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
   try {
     const now = new Date();
     let startDate;
-    let endDate;
+    let endDate = new Date(now);
+    endDate.setDate(now.getDate() - 1); // Default endDate to yesterday
 
     // Set start and end dates based on filter
     if (filter === 'yesterday') {
-      startDate = new Date(now);
-      startDate.setDate(now.getDate() - 1);
-      endDate = startDate;
+      startDate = new Date(endDate);
     } else if (filter === 'one_week') {
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
-      endDate = now;
     } else if (filter === 'one_month') {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 1);
-      endDate = now;
     } else if (filter === 'three_months') {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 3);
-      endDate = now;
     } else if (filter === 'six_months') {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 6);
-      endDate = now;
     } else if (filter === 'twelve_months') {
       startDate = new Date(now);
       startDate.setFullYear(now.getFullYear() - 1);
-      endDate = now;
     } else if (filter === 'custom_date_range') {
       if (!customStartDate || !customEndDate) {
         throw new Error('Custom start and end dates are required for custom_date_range filter');
       }
       startDate = new Date(customStartDate);
       endDate = new Date(customEndDate);
+      endDate.setDate(endDate.getDate() - 1); // Exclude today's date for custom range as well
     } else {
       throw new Error('Invalid filter specified');
     }
@@ -472,7 +709,7 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
       groupBy = {
         $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
       };
-    }  else {
+    } else {
       groupBy = {
         $dateToString: { format: "%Y-%m", date: { $dateFromString: { dateString: "$date" } } }
       };
@@ -484,7 +721,7 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
 
     console.log('Start Date:', startDateString);
     console.log('End Date:', endDateString);
-    console.log('dayDIFFERENCE:', dayDifference);
+    console.log('dayDifference:', dayDifference);
     console.log('Group By:', groupBy.$dateToString.date?.$dateFromString);
 
     // Fetch total ad spend (regardless of date filter)
