@@ -372,11 +372,11 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
     const groupBy = dayDiff <= 61 ? 'day' : 'month';
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
+
     const orders = await Order.find({
       createdAt: { $gte: startDateISO, $lte: endDateISO },
-    },
-    "createdAt customer.id shippingAddress.city"
-    ).populate("customer.id", "createdAt numberOfOrders");
+    }, "createdAt customer.id shippingAddress.city")
+      .populate("customer.id", "createdAt numberOfOrders");
 
     const customerData = await Customer.find({}, "id createdAt numberOfOrders");
 
@@ -384,14 +384,19 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
       newCustomers: {},
       returningCustomers: {},
     };
+
     orders.forEach((order) => {
       if (!order.customer || !order.customer.id) return;
 
       const customer = customerData.find((c) => c.id === order.customer.id);
 
       if (customer) {
-        const isNewCustomer = customer.numberOfOrders === "1"; 
+        const isNewCustomer = customer.numberOfOrders === "1";
         const city = order.shippingAddress.city;
+
+        // Skip counting if city is null or empty
+        if (!city) return;
+
         const date = new Date(order.createdAt);
         const formattedDate = groupBy === 'day'
           ? date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
@@ -408,6 +413,7 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
         }
       }
     });
+
     const generateDateOrMonthArray = (startDate, endDate, groupBy) => {
       const results = [];
       let currentDate = new Date(startDate);
@@ -450,25 +456,47 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
 
     const mergedNewCustomers = mergeCityData(cityData.newCustomers, initializedNewCustomers);
     const mergedReturningCustomers = mergeCityData(cityData.returningCustomers, initializedReturningCustomers);
+
     const formatCityData = (cityData) => {
       const result = [];
+      let totalUserCount = 0; // Initialize total user count
+      let totalNewUserCount = 0; // Initialize total new user count
+      let totalReturningUserCount = 0; // Initialize total returning user count
+
       for (const [date, cities] of Object.entries(cityData)) {
         const rankedCities = Object.entries(cities)
           .sort((a, b) => b[1] - a[1])
           .map(([city, count]) => ({ city, count }));
+
         result.push({ date, cities: rankedCities });
+
+        rankedCities.forEach(cityData => {
+          if (cityData.city) {  // Only count if city is not null or empty
+            totalUserCount += cityData.count;
+          }
+        });
       }
-      return result.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      return { rankedData: result.sort((a, b) => new Date(a.date) - new Date(b.date)), totalUserCount }; // Return counts along with the ranked data
     };
 
-    const rankedNewCustomers = formatCityData(mergedNewCustomers);
-    const rankedReturningCustomers = formatCityData(mergedReturningCustomers);
+    const { rankedData: rankedNewCustomers, totalUserCount: totalNewUserCount } = formatCityData(mergedNewCustomers);
+    const { rankedData: rankedReturningCustomers, totalUserCount: totalReturningUserCount } = formatCityData(mergedReturningCustomers);
 
-    return { rankedNewCustomers, rankedReturningCustomers };
+    const totalUserCount = totalNewUserCount + totalReturningUserCount; // Total users across both new and returning customers
+
+    return {
+      rankedNewCustomers,
+      rankedReturningCustomers,
+      totalUserCount,          // Total users across all cities
+      totalNewUserCount,       // Total new users
+      totalReturningUserCount  // Total returning users
+    };
   } catch (error) {
     throw new Error(error.message);
   }
 };
+
 
 
 
@@ -805,6 +833,7 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
 
 
 
+
 const calculateTotalSales = async () => {
   try {
     // Fetch all necessary data
@@ -1003,6 +1032,192 @@ const calculateBestSellers = async () => {
     throw error;
   }
 };
+
+
+
+export const calculateBlendedCAC = async (filter, customStartDate, customEndDate) => {
+  try {
+    // Get the date range
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    
+    // Generate the array of dates
+    const dates = generateDateArray(startDate, endDate);
+    
+    // Convert dates to strings for querying MetaAdInsights
+    const startDateString = startDate.toISOString().split('T')[0];
+    const endDateString = endDate.toISOString().split('T')[0];
+
+    // Fetch total ad spend within the date range
+    const totalAdSpendResult = await MetaAdInsights.aggregate([
+      { $unwind: "$insights" }, // Unwind the insights array
+      {
+        $match: {
+          date: { $gte: startDateString, $lte: endDateString },
+        },
+      },
+      {
+        $group: {
+          _id: "$date",
+          totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
+        },
+      },
+    ]);
+
+    // Fetch the total number of unique customers who made a purchase within the date range
+    const uniqueCustomersCountResult = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate },
+          "customer.id": { $ne: null } // Match orders by createdAt field
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          uniqueCustomers: { $addToSet: "$customer.id" } // Collect unique customer IDs
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          uniqueCustomersCount: { $size: "$uniqueCustomers" } // Count unique customer IDs
+        },
+      },
+    ]);
+
+    // Prepare maps of results
+    const adSpendMap = totalAdSpendResult.reduce((acc, { _id, totalAdSpend }) => {
+      acc[_id] = totalAdSpend;
+      return acc;
+    }, {});
+
+    const uniqueCustomerMap = uniqueCustomersCountResult.reduce((acc, { _id, uniqueCustomersCount }) => {
+      acc[_id] = uniqueCustomersCount;
+      return acc;
+    }, {});
+
+    // Format the data by date and calculate daily Blended CAC
+    const formattedData = dates.map(date => {
+      const dateString = date.toISOString().split('T')[0];
+      const adSpend = adSpendMap[dateString] || 0;
+      const uniqueCustomers = uniqueCustomerMap[dateString] || 0;
+      const dailyBlendedCAC = uniqueCustomers > 0 ? adSpend / uniqueCustomers : 0;
+      return {
+        date: dateString,
+        adSpend,
+        uniqueCustomers,
+        blendedCAC: dailyBlendedCAC.toFixed(3),
+      };
+    });
+
+    // Calculate total ad spend and unique customers
+    const totalAdSpend = formattedData.reduce((sum, { adSpend }) => sum + adSpend, 0);
+    const totalUniqueCustomers = formattedData.reduce((sum, { uniqueCustomers }) => sum + uniqueCustomers, 0);
+    const blendedCAC = totalUniqueCustomers > 0 ? totalAdSpend / totalUniqueCustomers : 0;
+
+    return {
+      totalAdSpend: totalAdSpend.toFixed(3),
+      totalUniqueCustomers,
+      blendedCAC: blendedCAC.toFixed(3),
+      dataByDate: formattedData,
+    };
+  } catch (error) {
+    console.error('Error in calculateBlendedCAC:', error.message);
+    throw error;
+  }
+};
+
+export const calculateBlendedROAS = async (filter, customStartDate, customEndDate) => {
+  try {
+    // Get the date range
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+
+    // Calculate the difference in days
+    const dateDifference = (endDate - startDate) / (1000 * 60 * 60 * 24);
+
+    // Determine whether to group by day or month
+    const groupByMonth = dateDifference > 61;
+
+    // Generate the appropriate array of dates or months
+    const dateArray = groupByMonth ? generateMonthArray(startDate, endDate) : generateDateArray(startDate, endDate);
+
+    // Set the group format based on the date range
+    const groupFormat = groupByMonth ? "%Y-%m" : "%Y-%m-%d";
+
+    // Convert dates to strings for querying MetaAdInsights
+    const startDateString = startDate.toISOString().split('T')[0];
+    const endDateString = endDate.toISOString().split('T')[0];
+
+    // Fetch total ad spend by date or month
+    const adSpendByDate = await MetaAdInsights.aggregate([
+      { $unwind: "$insights" },
+      {
+        $match: {
+          date: { $gte: startDateString, $lte: endDateString },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: groupFormat, date: { $toDate: "$date" } } },
+          totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
+        },
+      },
+    ]);
+
+    // Fetch total sales by date or month
+    const salesByDate = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate },
+          "customer.id": { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
+          totalSales: { $sum: { $toDouble: "$totalPrice" } },
+        },
+      },
+    ]);
+
+    // Create a map of dates or months to ad spend and sales
+    const adSpendMap = adSpendByDate.reduce((acc, item) => {
+      acc[item._id] = item.totalAdSpend;
+      return acc;
+    }, {});
+
+    const salesMap = salesByDate.reduce((acc, item) => {
+      acc[item._id] = item.totalSales;
+      return acc;
+    }, {});
+
+    // Calculate ROAS for each date or month in the range
+    const roasData = dateArray.map(date => {
+      const dateString = groupByMonth
+        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        : date.toISOString().split('T')[0];
+      const totalSales = salesMap[dateString] || 0;
+      const totalAdSpend = adSpendMap[dateString] || 0;
+      const roas = totalAdSpend > 0 ? totalSales / totalAdSpend : 0;
+
+      return {
+        date: dateString,
+        totalSales: totalSales.toFixed(2),
+        totalAdSpend: totalAdSpend.toFixed(2),
+        roas: roas.toFixed(5),
+      };
+    });
+
+    return {
+      data: roasData,
+    };
+  } catch (error) {
+    console.error('Error in calculateBlendedROAS:', error.message);
+    throw error;
+  }
+};
+
+
 export default {
   getSalesTrends,
   getAOV,
@@ -1015,9 +1230,11 @@ export default {
   calculateTotalShippingCost,
   calculateTotalAdSpend,
   calculateTotalAdSpendByDate,
+  calculateBlendedCAC,
   calculateTotalSales,
   calculateGrossProfitBreakdown,
   calculateProductProfitability,
   calculateLeastProfitableProducts,
-  calculateBestSellers
+  calculateBestSellers,
+  calculateBlendedROAS
 };

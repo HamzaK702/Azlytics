@@ -128,6 +128,19 @@ export const getTotalAdSpendByDate = async (req, res) => {
   }
 };
 
+export const getBlendedCAC = async (req, res) => {
+  const { filter, customStartDate, customEndDate } = req.query;
+
+  try {
+    const result = await salesService.calculateBlendedCAC(filter, customStartDate, customEndDate);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+
+};
+
+
 export const getTotalSales = async (req, res) => {
   try {
     const totalSales = await salesService.calculateTotalSales();
@@ -180,5 +193,29 @@ export const getBestSellers = async (req, res) => {
     res.json(bestSellers);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch best sellers" });
+  }
+};
+
+
+export const getBlendedROAS = async (req, res) => {
+  try {
+    // Extract filter, customStartDate, and customEndDate from query parameters
+    const { filter, customStartDate, customEndDate } = req.query;
+
+    // Call the service function to calculate Blended ROAS
+    const result = await salesService.calculateBlendedROAS(filter, customStartDate, customEndDate);
+
+    // Send the result as a JSON response
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error in getBlendedROAS:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while calculating Blended ROAS',
+      error: error.message,
+    });
   }
 };
