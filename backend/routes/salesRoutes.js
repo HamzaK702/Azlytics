@@ -17,7 +17,8 @@ import {
   getProductProfitability,
   getLeastProfitableProducts,
   getBestSellers,
-  getBlendedROAS
+  getBlendedROAS,
+  getTopCitiesComparison
 } from "../controllers/salesController.js";
 
 const router = express.Router();
@@ -40,6 +41,7 @@ router.get("/product-profitability", getProductProfitability);
 router.get("/least-profitable-products", getLeastProfitableProducts);
 router.get("/best-sellers", getBestSellers);
 router.get("/blended-roas", getBlendedROAS);
+router.get("/top-cities-comparison", getTopCitiesComparison);
 
 
 

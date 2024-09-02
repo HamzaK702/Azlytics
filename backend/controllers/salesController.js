@@ -43,6 +43,28 @@ export const getTopCities = async (req , res)=>{
   }
 }
 
+export const getTopCitiesComparison = async (req, res) => {
+  try {
+    const { filter, customStartDate, customEndDate } = req.query;
+
+    // Call the service function to get the comparison data
+    const comparisonData = await salesService.getTopCitiesComparison(filter, customStartDate, customEndDate);
+
+    // Send the comparison data in the response
+    res.status(200).json({
+      success: true,
+      data: comparisonData,
+    });
+  } catch (error) {
+    console.error('Error in getTopCitiesComparison:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch top cities comparison',
+      error: error.message,
+    });
+  }
+};
+
 export const getTopSKUs = async (req, res) => {
   try {
     const skus = await salesService.getTopSKUs();

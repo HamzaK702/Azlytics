@@ -80,6 +80,55 @@ const generateMonthArray = (startDate, endDate) => {
   return months;
 };
 
+// Daily Period Helper Function
+const generateDailyPeriods = (startDate, endDate) => {
+  const periods = [];
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    periods.push(currentDate.toISOString().split('T')[0]);
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return periods;
+};
+
+// Weekly Period Helper Function
+const generateWeeklyPeriods = (startDate, endDate) => {
+  const periods = [];
+  let currentDate = new Date(startDate);
+  
+  // Align start date to the nearest previous Monday
+  currentDate.setDate(currentDate.getDate() - (currentDate.getDay() + 6) % 7);
+
+  while (currentDate <= endDate) {
+    const weekStart = new Date(currentDate);
+    weekStart.setDate(currentDate.getDate() - weekStart.getDay() + 1); // Align to Monday
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6); // End of the week (Sunday)
+    periods.push(`${weekStart.toISOString().split('T')[0]} - ${weekEnd.toISOString().split('T')[0]}`);
+    currentDate.setDate(currentDate.getDate() + 7);
+  }
+
+  return periods;
+};
+
+// Quarterly Period Helper Function
+const generateQuarterlyPeriods = (startDate, endDate) => {
+  const periods = [];
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    const quarterStart = new Date(currentDate.getFullYear(), Math.floor(currentDate.getMonth() / 3) * 3, 1);
+    const quarterEnd = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 3, 0);
+    periods.push(`${quarterStart.toISOString().split('T')[0]} - ${quarterEnd.toISOString().split('T')[0]}`);
+    currentDate.setMonth(currentDate.getMonth() + 3);
+  }
+
+  return periods;
+};
+
+
 const aggregateTotalSales = async (startDate, endDate, groupBy) => {
   const matchStage = {
     createdAt: {
@@ -496,6 +545,54 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
     throw new Error(error.message);
   }
 };
+
+
+
+
+export const getTopCitiesComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    // Calculate current period data
+    const currentPeriodData = await getTopCities(filter, customStartDate, customEndDate);
+
+    // Calculate the previous period date range
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+
+    const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+
+    console.log('Previous Start Date:', previousStartDate);
+    console.log('Previous End Date:', previousEndDate);
+
+    const previousPeriodData = await getTopCities(filter="custom_date_range", previousStartDate, previousEndDate);
+
+    // Compare current and previous periods
+    const comparison = {
+    
+      currentPeriodData:currentPeriodData,
+      previousPeriodData:previousPeriodData,
+      percentageComparison: {
+        totalCustomers: calculatePercentageChange(currentPeriodData.totalUserCount, previousPeriodData.totalUserCount),
+        newCustomers: calculatePercentageChange(currentPeriodData.totalNewUserCount, previousPeriodData.totalNewUserCount),
+        returningCustomers: calculatePercentageChange(currentPeriodData.totalReturningUserCount, previousPeriodData.totalReturningUserCount),
+      },
+    };
+
+    return comparison;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+// Helper function to calculate percentage change
+const calculatePercentageChange = (current, previous) => {
+  if (previous === 0) return current === 0 ? 0 : 100; // Handle divide by zero
+  return ((current - previous) / previous) * 100;
+};
+
 
 
 
@@ -1236,5 +1333,6 @@ export default {
   calculateProductProfitability,
   calculateLeastProfitableProducts,
   calculateBestSellers,
-  calculateBlendedROAS
+  calculateBlendedROAS,
+  getTopCitiesComparison
 };
