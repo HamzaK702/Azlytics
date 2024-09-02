@@ -219,3 +219,15 @@ export const getBlendedROAS = async (req, res) => {
     });
   }
 };
+
+
+
+
+export const getDailyAdSpendForPastThreeMonths = async (req, res) => {
+  try {
+    const leastProfitableProducts = await salesService.getDailyAdSpendForPastThreeMonths();
+    res.json(leastProfitableProducts);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch least profitable products" });
+  }
+};

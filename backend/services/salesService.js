@@ -1217,6 +1217,101 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
   }
 };
 
+const breakDataIntoWeeks = (dailyData) => {
+  const weeklyData = [];
+  
+  dailyData.forEach(day => {
+    const weekStart = moment(day.date).startOf('isoWeek').format('YYYY-MM-DD');
+    const existingWeek = weeklyData.find(week => week.weekStart === weekStart);
+    
+    if (existingWeek) {
+      existingWeek.totalSpend += day.spend;
+    } else {
+      weeklyData.push({
+        weekStart: weekStart,
+        totalSpend: day.spend
+      });
+    }
+  });
+
+  return weeklyData;
+};
+
+const getDailyAdSpendForPastThreeMonths = async () => {
+  try {
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setMonth(now.getMonth() - 3);
+    const endDate = new Date(now);
+    endDate.setDate(now.getDate() - 1); // Exclude today's date
+
+    // Convert dates to string format "YYYY-MM-DD"
+    const startDateString = startDate.toISOString().split('T')[0];
+    const endDateString = endDate.toISOString().split('T')[0];
+
+    console.log('Start Date:', startDateString);
+    console.log('End Date:', endDateString);
+
+    // Fetch ad spend based on the date range
+    const adSpendByDate = await MetaAdInsights.aggregate([
+      { $unwind: "$insights" }, // Unwind the insights array
+      {
+        $match: {
+          date: { $gte: startDateString, $lte: endDateString },
+        },
+      },
+      {
+        $project: {
+          date: {
+            $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
+          },
+          spend: { $toDouble: "$insights.spend" } // Access spend from insights array
+        }
+      },
+      {
+        $group: {
+          _id: "$date",
+          totalSpendByDate: { $sum: "$spend" }
+        }
+      },
+      {
+        $sort: { _id: 1 } // Sort by date ascending
+      }
+    ]);
+
+    // Generate a list of all days within the range
+    const generateAllDays = () => {
+      const days = [];
+      let currentDate = moment(startDate);
+      const endDateMoment = moment(endDate);
+
+      while (currentDate <= endDateMoment) {
+        days.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
+        currentDate.add(1, 'day');
+      }
+
+      return days;
+    };
+
+    // Map ad spend data to the days
+    const allDays = generateAllDays();
+    adSpendByDate.forEach(item => {
+      const day = allDays.find(p => p.date === item._id);
+      if (day) {
+        day.spend = item.totalSpendByDate;
+      }
+    });
+    const weekwise = await breakDataIntoWeeks(allDays)
+    return {
+      adSpendByDay: allDays,
+      //adSpendByDay: weekwise,
+    };
+  } catch (error) {
+    console.error('Error in getDailyAdSpendForPastThreeMonths:', error.message);
+    throw error;
+  }
+};
+
 
 export default {
   getSalesTrends,
@@ -1236,5 +1331,6 @@ export default {
   calculateProductProfitability,
   calculateLeastProfitableProducts,
   calculateBestSellers,
-  calculateBlendedROAS
+  calculateBlendedROAS,
+  getDailyAdSpendForPastThreeMonths
 };
