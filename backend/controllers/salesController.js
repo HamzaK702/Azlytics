@@ -34,8 +34,8 @@ export const fetchAOV = async (req, res) => {
 
 export const getTopCities = async (req , res)=>{
   try {
-    const { filter, customStartDate, customEndDate } = req.query;
-    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate);
+    const { filter, customStartDate, customEndDate , granularity  } = req.query;
+    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate , granularity );
     res.status(200).json(topCitiesData);
   } catch (error) {
     console.error('Error fetching top cities:', error.message);
@@ -45,10 +45,10 @@ export const getTopCities = async (req , res)=>{
 
 export const getTopCitiesComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate } = req.query;
+    const { filter, customStartDate, customEndDate , granularity } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getTopCitiesComparison(filter, customStartDate, customEndDate);
+    const comparisonData = await salesService.getTopCitiesComparison(filter, customStartDate, customEndDate , granularity);
 
     // Send the comparison data in the response
     res.status(200).json({

@@ -414,11 +414,99 @@ const getAOV = async (filter, customStartDate, customEndDate) => {
 
 
 
-const getTopCities = async (filter, customStartDate, customEndDate) => {
+
+
+const breakCityDataIntoWeeks = (data) => {
+  const weeklyData = [];
+  
+  // Convert object to array of entries (date, cities)
+  const entries = Object.entries(data);
+  
+  entries.forEach(([date, cities]) => {
+    const weekStart = moment(date).startOf('isoWeek').format('YYYY-MM-DD');
+    const existingWeek = weeklyData.find(week => week.date === weekStart);
+    
+    let totalCount = 0;
+    if (cities) {
+      totalCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
+    }
+    
+    if (existingWeek) {
+      existingWeek.totalCount += totalCount;
+    } else {
+      weeklyData.push({
+        date: weekStart,
+        totalCount: totalCount
+      });
+    }
+
+    console.log(weeklyData , "weeklyData");
+  });
+
+  return weeklyData;
+};
+
+const breakCityDataIntoMonths = (data) => {
+  const monthlyData = [];
+  
+  // Convert object to array of entries (date, cities)
+  const entries = Object.entries(data);
+  
+  entries.forEach(([date, cities]) => {
+    const monthStart = moment(date).startOf('month').format('YYYY-MM-DD');
+    const existingMonth = monthlyData.find(month => month.date === monthStart);
+    
+    const dailyCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
+    
+    if (existingMonth) {
+      existingMonth.totalCount += dailyCount;
+    } else {
+      monthlyData.push({
+        date: monthStart,
+        totalCount: dailyCount
+      });
+    }
+  });
+
+  return monthlyData;
+};
+
+const breakCityDataIntoQuarters = (data) => {
+  const quarterlyData = [];
+  
+  // Convert object to array of entries (date, cities)
+  const entries = Object.entries(data);
+  
+  entries.forEach(([date, cities]) => {
+    const momentDate = moment(date);
+    const quarter = Math.ceil(momentDate.month() / 3) + 1;
+    const year = momentDate.year();
+    const quarterStart = `${year}-Q${quarter}`;
+    
+    const existingQuarter = quarterlyData.find(quarter => quarter.date === quarterStart);
+    
+    const dailyCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
+    
+    if (existingQuarter) {
+      existingQuarter.totalCount += dailyCount;
+    } else {
+      quarterlyData.push({
+        date: quarterStart,
+        totalCount: dailyCount
+      });
+    }
+  });
+
+  return quarterlyData;
+};
+
+
+
+
+const getTopCities = async (filter, customStartDate, customEndDate , granularity) => {
   try {
     const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
     const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-    const groupBy = dayDiff <= 61 ? 'day' : 'month';
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
@@ -447,9 +535,8 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
         if (!city) return;
 
         const date = new Date(order.createdAt);
-        const formattedDate = groupBy === 'day'
-          ? date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
-          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // Format date as YYYY-MM
+        const formattedDate = date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
+      
 
         if (isNewCustomer) {
           if (!cityData.newCustomers[formattedDate]) cityData.newCustomers[formattedDate] = {};
@@ -463,29 +550,24 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
       }
     });
 
-    const generateDateOrMonthArray = (startDate, endDate, groupBy) => {
+    const generateDateOrMonthArray = (startDate, endDate) => {
       const results = [];
       let currentDate = new Date(startDate);
       
       while (currentDate <= endDate) {
         results.push(new Date(currentDate));
-        if (groupBy === 'day') {
+       
           currentDate.setDate(currentDate.getDate() + 1);
-        } else {
-          currentDate.setMonth(currentDate.getMonth() + 1);
-          currentDate.setDate(1); 
-        }
+        
       }
 
       return results;
     };
 
-    const allPeriods = generateDateOrMonthArray(startDate, endDate, groupBy);
+    const allPeriods = generateDateOrMonthArray(startDate, endDate);
     const initializeCityData = (data) => {
       return allPeriods.reduce((acc, date) => {
-        const dateKey = groupBy === 'day'
-          ? date.toISOString().split('T')[0]
-          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const dateKey = date.toISOString().split('T')[0];
         acc[dateKey] = acc[dateKey] || {};
         return acc;
       }, data);
@@ -506,31 +588,49 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
     const mergedNewCustomers = mergeCityData(cityData.newCustomers, initializedNewCustomers);
     const mergedReturningCustomers = mergeCityData(cityData.returningCustomers, initializedReturningCustomers);
 
-    const formatCityData = (cityData) => {
-      const result = [];
-      let totalUserCount = 0; // Initialize total user count
-      let totalNewUserCount = 0; // Initialize total new user count
-      let totalReturningUserCount = 0; // Initialize total returning user count
-
-      for (const [date, cities] of Object.entries(cityData)) {
-        const rankedCities = Object.entries(cities)
-          .sort((a, b) => b[1] - a[1])
-          .map(([city, count]) => ({ city, count }));
-
-        result.push({ date, cities: rankedCities });
-
-        rankedCities.forEach(cityData => {
-          if (cityData.city) {  // Only count if city is not null or empty
-            totalUserCount += cityData.count;
-          }
-        });
+    const breakData = (data, granularity) => {
+      console.log(data, "check");
+      switch (granularity) {
+        case 'week':
+          return breakCityDataIntoWeeks(data);
+        case 'month':
+          return breakCityDataIntoMonths(data);
+        case 'quarter':
+          return breakCityDataIntoQuarters(data);
+        case 'day':
+        default:
+          return Object.entries(data).map(([date, cities]) => {
+            const totalCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
+            return { date, totalCount };
+          });
       }
-      
-      return { rankedData: result.sort((a, b) => new Date(a.date) - new Date(b.date)), totalUserCount }; // Return counts along with the ranked data
     };
 
-    const { rankedData: rankedNewCustomers, totalUserCount: totalNewUserCount } = formatCityData(mergedNewCustomers);
-    const { rankedData: rankedReturningCustomers, totalUserCount: totalReturningUserCount } = formatCityData(mergedReturningCustomers);
+    const formatCityData = (cityData) => {
+      const result = [];
+      let totalUserCount = 0; 
+      let totalNewUserCount = 0; 
+      let totalReturningUserCount = 0; 
+    
+      cityData.forEach(({ date, totalCount }) => {
+        totalUserCount += totalCount;
+        totalNewUserCount += totalCount; 
+        result.push({ date, totalCount });
+      });
+  
+      result.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+      return { rankedData: result, totalUserCount, totalNewUserCount, totalReturningUserCount };
+    };
+    
+
+    const formattedNewCustomers = breakData(mergedNewCustomers, granularity);
+    const formattedReturningCustomers = breakData(mergedReturningCustomers, granularity);
+
+    console.log('Formatted New Customers:', formattedNewCustomers);
+
+    const { rankedData: rankedNewCustomers, totalUserCount: totalNewUserCount } = formatCityData(formattedNewCustomers);
+    const { rankedData: rankedReturningCustomers, totalUserCount: totalReturningUserCount } = formatCityData(formattedReturningCustomers);
 
     const totalUserCount = totalNewUserCount + totalReturningUserCount; // Total users across both new and returning customers
 
@@ -549,13 +649,15 @@ const getTopCities = async (filter, customStartDate, customEndDate) => {
 
 
 
-export const getTopCitiesComparison = async (filter, customStartDate, customEndDate) => {
+
+
+export const getTopCitiesComparison = async (filter, customStartDate, customEndDate , granularity) => {
   try {
     // Calculate current period data
-    const currentPeriodData = await getTopCities(filter, customStartDate, customEndDate);
+    const currentPeriodData = await getTopCities(filter, customStartDate, customEndDate , granularity);
 
     // Calculate the previous period date range
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate , granularity);
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(endDate);
 
@@ -567,7 +669,7 @@ export const getTopCitiesComparison = async (filter, customStartDate, customEndD
     console.log('Previous Start Date:', previousStartDate);
     console.log('Previous End Date:', previousEndDate);
 
-    const previousPeriodData = await getTopCities(filter="custom_date_range", previousStartDate, previousEndDate);
+    const previousPeriodData = await getTopCities(filter="custom_date_range", previousStartDate, previousEndDate , granularity);
 
     // Compare current and previous periods
     const comparison = {
@@ -1334,6 +1436,47 @@ const breakDataIntoWeeks = (dailyData) => {
   return weeklyData;
 };
 
+const breakDataIntoMonths = (dailyData) => {
+  const monthlyData = [];
+
+  dailyData.forEach(day => {
+    const monthStart = moment(day.date).startOf('month').format('YYYY-MM-DD');
+    const existingMonth = monthlyData.find(month => month.monthStart === monthStart);
+    
+    if (existingMonth) {
+      existingMonth.totalSpend += day.spend;
+    } else {
+      monthlyData.push({
+        monthStart: monthStart,
+        totalSpend: day.spend
+      });
+    }
+  });
+
+  return monthlyData;
+};
+
+const breakDataIntoQuarters = (dailyData) => {
+  const quarterlyData = [];
+
+  dailyData.forEach(day => {
+    const quarterStart = moment(day.date).startOf('quarter').format('YYYY-MM-DD');
+    const existingQuarter = quarterlyData.find(quarter => quarter.quarterStart === quarterStart);
+    
+    if (existingQuarter) {
+      existingQuarter.totalSpend += day.spend;
+    } else {
+      quarterlyData.push({
+        quarterStart: quarterStart,
+        totalSpend: day.spend
+      });
+    }
+  });
+
+  return quarterlyData;
+};
+
+
 const getDailyAdSpendForPastThreeMonths = async () => {
   try {
     const now = new Date();
@@ -1398,9 +1541,9 @@ const getDailyAdSpendForPastThreeMonths = async () => {
         day.spend = item.totalSpendByDate;
       }
     });
-    const weekwise = await breakDataIntoWeeks(allDays)
+    const quarterwise = await breakDataIntoQuarters(allDays)
     return {
-      adSpendByDay: allDays,
+      adSpendByDay: quarterwise,
       //adSpendByDay: weekwise,
     };
   } catch (error) {
