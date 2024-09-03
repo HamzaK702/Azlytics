@@ -19,7 +19,12 @@ import {
   getBestSellers,
   getBlendedROAS,
   getTopCitiesComparison,
-  getDailyAdSpendForPastThreeMonths
+  fetchTotalAdSpendComparison,
+  fetchSalesTrendComparison,
+  fetchAOVComparison,
+  fetchBlendedROASComparison,
+  fetchBlendedCACComparison,
+  // getDailyAdSpendForPastThreeMonths
 } from "../controllers/salesController.js";
 
 const router = express.Router();
@@ -43,7 +48,12 @@ router.get("/least-profitable-products", getLeastProfitableProducts);
 router.get("/best-sellers", getBestSellers);
 router.get("/blended-roas", getBlendedROAS);
 router.get("/top-cities-comparison", getTopCitiesComparison);
-router.get("/last-3-months", getDailyAdSpendForPastThreeMonths);
+router.get("/total-ad-spend-comparison", fetchTotalAdSpendComparison);
+router.get("/sales-trend-comparison", fetchSalesTrendComparison);
+router.get("/aov-comparison", fetchAOVComparison);
+router.get("/blended-roas-comparison", fetchBlendedROASComparison);
+router.get("/blended-cac-comparison", fetchBlendedCACComparison);
+// router.get("/last-3-months", getDailyAdSpendForPastThreeMonths);
 
 
 

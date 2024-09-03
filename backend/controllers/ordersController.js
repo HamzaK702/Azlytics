@@ -1,4 +1,4 @@
-import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calculateCOGS ,calculateGrossProfit , calculateNetProfit} from "../services/ordersService.js";
+import {getOrdersTrend ,  calculateOrderTimeDifferences , calculateAOV , calculateCOGS ,calculateGrossProfit , calculateNetProfit , getOrdersTrendComparison} from "../services/ordersService.js";
 
 
 export const ordersTrend = async (req, res) => {
@@ -13,6 +13,26 @@ export const ordersTrend = async (req, res) => {
   } catch (error) {
     console.error('Error fetching orders trend:', error);
     res.status(500).json({ message: 'Error fetching orders trend' });
+  }
+};
+
+export const fetchOrdersTrendComparison = async (req, res) => {
+  try {
+    const { filter, customStartDate, customEndDate  } = req.query;
+
+    // Call the service function to get the comparison data
+    const comparisonData = await getOrdersTrendComparison(filter, customStartDate, customEndDate );
+    res.status(200).json({
+      success: true,
+      data: comparisonData,
+    });
+  } catch (error) {
+    console.error('Error in getOrdersTrendComparison:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders trend comparison',
+      error: error.message,
+    });
   }
 };
 

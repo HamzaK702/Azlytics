@@ -170,6 +170,60 @@ export const getOrdersTrend = async (filter, customStartDate, customEndDate) => 
   }
 };
 
+
+export const getOrdersTrendComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    const currentPeriodData = await getOrdersTrend(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = salesService.getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+    const previousPeriodData = await getOrdersTrend(
+      'custom_date_range',
+      previousStartDate.toISOString().split('T')[0],
+      previousEndDate.toISOString().split('T')[0]
+    );
+    const aggregateOrdersData = (data) => {
+      return data.reduce(
+        (acc, item) => {
+          acc.totalOrders += item.totalOrders;
+          acc.newCustomerOrders += item.newCustomerOrders;
+          acc.returningCustomerOrders += item.returningCustomerOrders;
+          return acc;
+        },
+        { totalOrders: 0, newCustomerOrders: 0, returningCustomerOrders: 0 }
+      );
+    };
+
+    const currentAggregate = aggregateOrdersData(currentPeriodData);
+    const previousAggregate = aggregateOrdersData(previousPeriodData);
+
+    // Helper function to calculate percentage change
+    const calculatePercentageChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / Math.abs(previous)) * 100;
+    };
+
+    // Prepare comparison results
+    const comparison = {
+      currentPeriod: currentPeriodData,
+      previousPeriod: previousPeriodData,
+      percentageComparison: {
+        totalOrders: calculatePercentageChange(currentAggregate.totalOrders, previousAggregate.totalOrders),
+        newCustomerOrders: calculatePercentageChange(currentAggregate.newCustomerOrders, previousAggregate.newCustomerOrders),
+        returningCustomerOrders: calculatePercentageChange(currentAggregate.returningCustomerOrders, previousAggregate.returningCustomerOrders),
+      },
+    };
+
+    return comparison;
+  } catch (error) {
+    console.error('Error in getOrdersTrendComparison:', error.message);
+    throw new Error('Error fetching orders trend comparison');
+  }
+};
+
 export const calculateOrderTimeDifferences = async (req, res) => {
   try {
     const customerOrders = await Order.aggregate([

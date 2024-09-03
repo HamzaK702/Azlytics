@@ -7,7 +7,7 @@ import moment from "moment";
 
 
 
-const getDateRange = (filter, customStartDate, customEndDate) => {
+export const getDateRange = (filter, customStartDate, customEndDate) => {
   const now = new Date();
   let startDate;
   let endDate;
@@ -342,6 +342,58 @@ const getSalesTrends = async (filter, customStartDate, customEndDate) => {
 };
 
 
+export const getSalesTrendsComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    const currentPeriodData = await getSalesTrends(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+
+    const previousPeriodData = await getSalesTrends(
+      'custom_date_range',
+      previousStartDate,
+      previousEndDate
+    );
+
+    const aggregateSales = (salesData) => {
+      return salesData.reduce(
+        (acc, item) => {
+          acc.totalSales += item.totalSales;
+          acc.newCustomerSales += item.newCustomerSales;
+          acc.returningCustomerSales += item.returningCustomerSales;
+          return acc;
+        },
+        { totalSales: 0, newCustomerSales: 0, returningCustomerSales: 0 }
+      );
+    };
+
+    const currentSalesAggregate = aggregateSales(currentPeriodData);
+    const previousSalesAggregate = aggregateSales(previousPeriodData);
+
+    // Compare current and previous periods
+    const comparison = {
+      currentPeriodData: currentPeriodData,
+      previousPeriodData: previousPeriodData,
+      percentageComparison: {
+        totalSales: calculatePercentageChange(currentSalesAggregate.totalSales, previousSalesAggregate.totalSales),
+        newCustomerSales: calculatePercentageChange(currentSalesAggregate.newCustomerSales, previousSalesAggregate.newCustomerSales),
+        returningCustomerSales: calculatePercentageChange(currentSalesAggregate.returningCustomerSales, previousSalesAggregate.returningCustomerSales),
+      },
+    };
+
+    return comparison;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+
+
 
 // Computes the average order value (AOV) for each date
 const getAOV = async (filter, customStartDate, customEndDate) => {
@@ -409,6 +461,53 @@ const getAOV = async (filter, customStartDate, customEndDate) => {
   // Return the final result
   return Array.from(dateMap.values());
 };
+
+export const getAOVComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    const currentPeriodAOV = await getAOV(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+    const previousPeriodAOV = await getAOV(
+      'custom_date_range',
+      previousStartDate,
+      previousEndDate
+    );
+    const aggregateAOV = (aovData) => {
+      return aovData.reduce(
+        (acc, item) => {
+          acc.combinedAOV += item.combinedAOV;
+          acc.newCustomerAOV += item.newCustomerAOV;
+          acc.returningCustomerAOV += item.returningCustomerAOV;
+          return acc;
+        },
+        { combinedAOV: 0, newCustomerAOV: 0, returningCustomerAOV: 0 }
+      );
+    };
+    const currentAOVAggregate = aggregateAOV(currentPeriodAOV);
+    const previousAOVAggregate = aggregateAOV(previousPeriodAOV);
+    const comparison = {
+      currentPeriodAOV: currentPeriodAOV,
+      previousPeriodAOV: previousPeriodAOV,
+      percentageComparison: {
+        combinedAOV: calculatePercentageChange(currentAOVAggregate.combinedAOV, previousAOVAggregate.combinedAOV),
+        newCustomerAOV: calculatePercentageChange(currentAOVAggregate.newCustomerAOV, previousAOVAggregate.newCustomerAOV),
+        returningCustomerAOV: calculatePercentageChange(currentAOVAggregate.returningCustomerAOV, previousAOVAggregate.returningCustomerAOV),
+      },
+    };
+
+    return comparison;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
+
 
 
 
@@ -891,6 +990,11 @@ const calculateTotalAdSpend = async () => {
 };
 
 
+
+
+
+
+
 const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDate) => {
   try {
     const now = new Date();
@@ -1026,6 +1130,42 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
   } catch (error) {
     console.error('Error in calculateTotalAdSpendByDate:', error.message);
     throw error;
+  }
+};
+
+
+export const getTotalAdSpendComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    
+    const currentPeriodData = await calculateTotalAdSpendByDate(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+
+    const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+    const previousPeriodData = await calculateTotalAdSpendByDate(filter='custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
+
+
+    const sumAdSpend = (adSpendData) =>
+      adSpendData.reduce((acc, item) => acc + item.spend, 0);
+
+    const totalCurrentAdSpend = sumAdSpend(currentPeriodData.adSpendByDate);
+    const totalPreviousAdSpend = sumAdSpend(previousPeriodData.adSpendByDate);
+
+
+    // Compare current and previous periods
+    const comparison = {
+      currentPeriodData: totalCurrentAdSpend,
+      previousPeriodData: totalPreviousAdSpend,
+      percentageComparison: calculatePercentageChange(totalCurrentAdSpend, totalPreviousAdSpend),
+    };
+
+    return comparison;
+  } catch (error) {
+    throw new Error(error.message);
   }
 };
 
@@ -1326,6 +1466,30 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
   }
 };
 
+export const getBlendedCACComparison = async (filter, customStartDate, customEndDate) => {
+  try {
+    const currentPeriodData = await calculateBlendedCAC(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+    const previousPeriodData = await calculateBlendedCAC('custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
+    const comparison = {
+      currentPeriodBlendedCAC: parseFloat(currentPeriodData.blendedCAC).toFixed(3),
+      previousPeriodBlendedCAC: parseFloat(previousPeriodData.blendedCAC).toFixed(3),
+      percentageComparison: calculatePercentageChange(currentPeriodData.blendedCAC, previousPeriodData.blendedCAC),
+    };
+
+    return comparison;
+  } catch (error) {
+    console.error('Error in getBlendedCACComparison:', error.message);
+    throw error;
+  }
+};
+
+
 export const calculateBlendedROAS = async (filter, customStartDate, customEndDate) => {
   try {
     // Get the date range
@@ -1416,141 +1580,175 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
   }
 };
 
-const breakDataIntoWeeks = (dailyData) => {
-  const weeklyData = [];
-  
-  dailyData.forEach(day => {
-    const weekStart = moment(day.date).startOf('isoWeek').format('YYYY-MM-DD');
-    const existingWeek = weeklyData.find(week => week.weekStart === weekStart);
-    
-    if (existingWeek) {
-      existingWeek.totalSpend += day.spend;
-    } else {
-      weeklyData.push({
-        weekStart: weekStart,
-        totalSpend: day.spend
-      });
-    }
-  });
-
-  return weeklyData;
-};
-
-const breakDataIntoMonths = (dailyData) => {
-  const monthlyData = [];
-
-  dailyData.forEach(day => {
-    const monthStart = moment(day.date).startOf('month').format('YYYY-MM-DD');
-    const existingMonth = monthlyData.find(month => month.monthStart === monthStart);
-    
-    if (existingMonth) {
-      existingMonth.totalSpend += day.spend;
-    } else {
-      monthlyData.push({
-        monthStart: monthStart,
-        totalSpend: day.spend
-      });
-    }
-  });
-
-  return monthlyData;
-};
-
-const breakDataIntoQuarters = (dailyData) => {
-  const quarterlyData = [];
-
-  dailyData.forEach(day => {
-    const quarterStart = moment(day.date).startOf('quarter').format('YYYY-MM-DD');
-    const existingQuarter = quarterlyData.find(quarter => quarter.quarterStart === quarterStart);
-    
-    if (existingQuarter) {
-      existingQuarter.totalSpend += day.spend;
-    } else {
-      quarterlyData.push({
-        quarterStart: quarterStart,
-        totalSpend: day.spend
-      });
-    }
-  });
-
-  return quarterlyData;
-};
-
-
-const getDailyAdSpendForPastThreeMonths = async () => {
+export const getBlendedROASComparison = async (filter, customStartDate, customEndDate) => {
   try {
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setMonth(now.getMonth() - 3);
-    const endDate = new Date(now);
-    endDate.setDate(now.getDate() - 1); // Exclude today's date
+    const currentPeriodData = await calculateBlendedROAS(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
+    const previousStartDate = new Date(startDate);
+    const previousEndDate = new Date(endDate);
+    previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
+    previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
+    const previousPeriodData = await calculateBlendedROAS(filter='custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
 
-    // Convert dates to string format "YYYY-MM-DD"
-    const startDateString = startDate.toISOString().split('T')[0];
-    const endDateString = endDate.toISOString().split('T')[0];
-
-    console.log('Start Date:', startDateString);
-    console.log('End Date:', endDateString);
-
-    // Fetch ad spend based on the date range
-    const adSpendByDate = await MetaAdInsights.aggregate([
-      { $unwind: "$insights" }, // Unwind the insights array
-      {
-        $match: {
-          date: { $gte: startDateString, $lte: endDateString },
-        },
-      },
-      {
-        $project: {
-          date: {
-            $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
-          },
-          spend: { $toDouble: "$insights.spend" } // Access spend from insights array
-        }
-      },
-      {
-        $group: {
-          _id: "$date",
-          totalSpendByDate: { $sum: "$spend" }
-        }
-      },
-      {
-        $sort: { _id: 1 } // Sort by date ascending
-      }
-    ]);
-
-    // Generate a list of all days within the range
-    const generateAllDays = () => {
-      const days = [];
-      let currentDate = moment(startDate);
-      const endDateMoment = moment(endDate);
-
-      while (currentDate <= endDateMoment) {
-        days.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
-        currentDate.add(1, 'day');
-      }
-
-      return days;
+    const sumROAS = (roasData) => {
+      const totalSales = roasData.data.reduce((acc, item) => acc + parseFloat(item.totalSales), 0);
+      const totalAdSpend = roasData.data.reduce((acc, item) => acc + parseFloat(item.totalAdSpend), 0);
+      return totalAdSpend > 0 ? totalSales / totalAdSpend : 0;
     };
 
-    // Map ad spend data to the days
-    const allDays = generateAllDays();
-    adSpendByDate.forEach(item => {
-      const day = allDays.find(p => p.date === item._id);
-      if (day) {
-        day.spend = item.totalSpendByDate;
-      }
-    });
-    const quarterwise = await breakDataIntoQuarters(allDays)
-    return {
-      adSpendByDay: quarterwise,
-      //adSpendByDay: weekwise,
+    const totalCurrentROAS = sumROAS(currentPeriodData);
+    const totalPreviousROAS = sumROAS(previousPeriodData);
+    
+    // Compare current and previous periods
+    const comparison = {
+      currentPeriodROAS: totalCurrentROAS.toFixed(5),
+      previousPeriodROAS: totalPreviousROAS.toFixed(5),
+      percentageComparison: calculatePercentageChange(totalCurrentROAS, totalPreviousROAS),
     };
+    
+    return comparison;
   } catch (error) {
-    console.error('Error in getDailyAdSpendForPastThreeMonths:', error.message);
-    throw error;
+    throw new Error(error.message);
   }
 };
+
+
+// const breakDataIntoWeeks = (dailyData) => {
+//   const weeklyData = [];
+  
+//   dailyData.forEach(day => {
+//     const weekStart = moment(day.date).startOf('isoWeek').format('YYYY-MM-DD');
+//     const existingWeek = weeklyData.find(week => week.weekStart === weekStart);
+    
+//     if (existingWeek) {
+//       existingWeek.totalSpend += day.spend;
+//     } else {
+//       weeklyData.push({
+//         weekStart: weekStart,
+//         totalSpend: day.spend
+//       });
+//     }
+//   });
+
+//   return weeklyData;
+// };
+
+// const breakDataIntoMonths = (dailyData) => {
+//   const monthlyData = [];
+
+//   dailyData.forEach(day => {
+//     const monthStart = moment(day.date).startOf('month').format('YYYY-MM-DD');
+//     const existingMonth = monthlyData.find(month => month.monthStart === monthStart);
+    
+//     if (existingMonth) {
+//       existingMonth.totalSpend += day.spend;
+//     } else {
+//       monthlyData.push({
+//         monthStart: monthStart,
+//         totalSpend: day.spend
+//       });
+//     }
+//   });
+
+//   return monthlyData;
+// };
+
+// const breakDataIntoQuarters = (dailyData) => {
+//   const quarterlyData = [];
+
+//   dailyData.forEach(day => {
+//     const quarterStart = moment(day.date).startOf('quarter').format('YYYY-MM-DD');
+//     const existingQuarter = quarterlyData.find(quarter => quarter.quarterStart === quarterStart);
+    
+//     if (existingQuarter) {
+//       existingQuarter.totalSpend += day.spend;
+//     } else {
+//       quarterlyData.push({
+//         quarterStart: quarterStart,
+//         totalSpend: day.spend
+//       });
+//     }
+//   });
+
+//   return quarterlyData;
+// };
+
+
+// const getDailyAdSpendForPastThreeMonths = async () => {
+//   try {
+//     const now = new Date();
+//     const startDate = new Date(now);
+//     startDate.setMonth(now.getMonth() - 3);
+//     const endDate = new Date(now);
+//     endDate.setDate(now.getDate() - 1); // Exclude today's date
+
+//     // Convert dates to string format "YYYY-MM-DD"
+//     const startDateString = startDate.toISOString().split('T')[0];
+//     const endDateString = endDate.toISOString().split('T')[0];
+
+//     console.log('Start Date:', startDateString);
+//     console.log('End Date:', endDateString);
+
+//     // Fetch ad spend based on the date range
+//     const adSpendByDate = await MetaAdInsights.aggregate([
+//       { $unwind: "$insights" }, // Unwind the insights array
+//       {
+//         $match: {
+//           date: { $gte: startDateString, $lte: endDateString },
+//         },
+//       },
+//       {
+//         $project: {
+//           date: {
+//             $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
+//           },
+//           spend: { $toDouble: "$insights.spend" } // Access spend from insights array
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: "$date",
+//           totalSpendByDate: { $sum: "$spend" }
+//         }
+//       },
+//       {
+//         $sort: { _id: 1 } // Sort by date ascending
+//       }
+//     ]);
+
+//     // Generate a list of all days within the range
+//     const generateAllDays = () => {
+//       const days = [];
+//       let currentDate = moment(startDate);
+//       const endDateMoment = moment(endDate);
+
+//       while (currentDate <= endDateMoment) {
+//         days.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
+//         currentDate.add(1, 'day');
+//       }
+
+//       return days;
+//     };
+
+//     // Map ad spend data to the days
+//     const allDays = generateAllDays();
+//     adSpendByDate.forEach(item => {
+//       const day = allDays.find(p => p.date === item._id);
+//       if (day) {
+//         day.spend = item.totalSpendByDate;
+//       }
+//     });
+//     const quarterwise = await breakDataIntoQuarters(allDays)
+//     return {
+//       adSpendByDay: quarterwise,
+//       //adSpendByDay: weekwise,
+//     };
+//   } catch (error) {
+//     console.error('Error in getDailyAdSpendForPastThreeMonths:', error.message);
+//     throw error;
+//   }
+// };
 
 
 export default {
@@ -1573,5 +1771,11 @@ export default {
   calculateBestSellers,
   calculateBlendedROAS,
   getTopCitiesComparison,
-  getDailyAdSpendForPastThreeMonths
+  getTotalAdSpendComparison,
+  getSalesTrendsComparison,
+  getAOVComparison,
+  getBlendedROASComparison,
+  getBlendedCACComparison,
+  getDateRange
+  // getDailyAdSpendForPastThreeMonths
 };
