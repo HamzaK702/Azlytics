@@ -1158,8 +1158,8 @@ export const getTotalAdSpendComparison = async (filter, customStartDate, customE
 
     // Compare current and previous periods
     const comparison = {
-      currentPeriodData: totalCurrentAdSpend,
-      previousPeriodData: totalPreviousAdSpend,
+      currentPeriodData: currentPeriodData,
+      previousPeriodData: previousPeriodData,
       percentageComparison: calculatePercentageChange(totalCurrentAdSpend, totalPreviousAdSpend),
     };
 
@@ -1477,8 +1477,8 @@ export const getBlendedCACComparison = async (filter, customStartDate, customEnd
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
     const previousPeriodData = await calculateBlendedCAC('custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
     const comparison = {
-      currentPeriodBlendedCAC: parseFloat(currentPeriodData.blendedCAC).toFixed(3),
-      previousPeriodBlendedCAC: parseFloat(previousPeriodData.blendedCAC).toFixed(3),
+      currentPeriodBlendedCAC:currentPeriodData,
+      previousPeriodBlendedCAC:previousPeriodData,
       percentageComparison: calculatePercentageChange(currentPeriodData.blendedCAC, previousPeriodData.blendedCAC),
     };
 
@@ -1602,8 +1602,8 @@ export const getBlendedROASComparison = async (filter, customStartDate, customEn
     
     // Compare current and previous periods
     const comparison = {
-      currentPeriodROAS: totalCurrentROAS.toFixed(5),
-      previousPeriodROAS: totalPreviousROAS.toFixed(5),
+      currentPeriodROAS: currentPeriodData,
+      previousPeriodROAS: previousPeriodData,
       percentageComparison: calculatePercentageChange(totalCurrentROAS, totalPreviousROAS),
     };
     
