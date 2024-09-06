@@ -733,9 +733,21 @@ const getTopCities = async (filter, customStartDate, customEndDate , granularity
 
     const totalUserCount = totalNewUserCount + totalReturningUserCount; // Total users across both new and returning customers
 
+    const mergedData = rankedNewCustomers.map(({ date, totalCount }) => {
+      const newCustomerCount = rankedNewCustomers.find(d => d.date === date)?.totalCount || 0;
+      const returningCustomerCount = rankedReturningCustomers.find(d => d.date === date)?.totalCount || 0;
+      const totalCustomer = newCustomerCount + returningCustomerCount;
+
+      return {
+        date,
+        totalCustomer,
+        newCustomers: newCustomerCount,
+        returningCustomers: returningCustomerCount
+      };
+    });
+
     return {
-      rankedNewCustomers,
-      rankedReturningCustomers,
+     data: mergedData,
       totalUserCount,          // Total users across all cities
       totalNewUserCount,       // Total new users
       totalReturningUserCount  // Total returning users
@@ -1445,7 +1457,7 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
         date: dateString,
         adSpend,
         uniqueCustomers,
-        blendedCAC: dailyBlendedCAC.toFixed(3),
+        blendedCAC: dailyBlendedCAC,
       };
     });
 
@@ -1455,9 +1467,9 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
     const blendedCAC = totalUniqueCustomers > 0 ? totalAdSpend / totalUniqueCustomers : 0;
 
     return {
-      totalAdSpend: totalAdSpend.toFixed(3),
+      totalAdSpend: totalAdSpend,
       totalUniqueCustomers,
-      blendedCAC: blendedCAC.toFixed(3),
+      blendedCAC: blendedCAC,
       dataByDate: formattedData,
     };
   } catch (error) {
@@ -1565,9 +1577,9 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
 
       return {
         date: dateString,
-        totalSales: totalSales.toFixed(2),
-        totalAdSpend: totalAdSpend.toFixed(2),
-        roas: roas.toFixed(5),
+        totalSales: totalSales,
+        totalAdSpend: totalAdSpend,
+        roas: roas,
       };
     });
 
