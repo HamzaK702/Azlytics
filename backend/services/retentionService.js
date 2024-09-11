@@ -3,7 +3,7 @@ import Customer from "../models/BulkTables/BulkCustomer/customer.js";
 import aggregateTotalSales from "./salesService.js";
 import { calculateCOGS } from "./ordersService.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay,subDays  } from 'date-fns';
 
 export const calculateRepeatRateByCity = async () => {
   const totalCustomersByCity = await Order.aggregate([
@@ -856,90 +856,246 @@ export const getAovBreakdown = async () => {
   }
 };
 
+// LTV Calculation Logic
+export const calculateLTV = async (filter) => {
+  // Step 1: Define date filter
+  const dateFilter = subDays(new Date(), filter);
+  console.log(`Date filter: Orders since ${dateFilter}`);
 
+  // Step 2: Calculate Average Order Value (AOV) for orders within the filter range
+  const totalOrderValue = await Order.aggregate([
+      { $match: { createdAt: { $gte: dateFilter } } },
+      { $group: { _id: null, totalPriceSum: { $sum: { $toDouble: "$totalPrice" } }, orderCount: { $sum: 1 } } },
+  ]);
+  console.log(`Total order value: ${JSON.stringify(totalOrderValue)}`);
 
-export const calculateLTV = async () => {
-    // Step 1: Calculate Average Order Value (AOV)
-    const totalOrderValue = await Order.aggregate([
-        { $group: { _id: null, totalPriceSum: { $sum: { $toDouble: "$totalPrice"} }, orderCount: { $sum: 1 } } }
-    ]);
-    console.log(`totalOrderValue ${totalOrderValue}`);
-    
+  const AOV = totalOrderValue.length > 0 ? totalOrderValue[0].totalPriceSum / totalOrderValue[0].orderCount : 0;
+  console.log(`AOV: ${AOV}`);
 
-    // Handle cases where no orders are found
-    const AOV = totalOrderValue.length > 0 ? totalOrderValue[0].totalPriceSum / totalOrderValue[0].orderCount : 0;
-    console.log(AOV , "aov");
+  // Step 3: Calculate Purchase Frequency
+  const orderCount = await Order.countDocuments({ createdAt: { $gte: dateFilter } });
+  console.log(`Order count: ${orderCount}`);
 
-    // Step 2: Calculate Purchase Frequency
-    const orderCount = await Order.countDocuments();
-    const customerCount = await Customer.countDocuments();
-    const purchaseFrequency = customerCount > 0 ? orderCount / customerCount : 0;
-    console.log(purchaseFrequency , "purchaseFrequency");
+  const customerCount = await Customer.countDocuments({ createdAt: { $gte: dateFilter } });
+  console.log(`Customer count: ${customerCount}`);
 
-    // Step 3: Calculate Customer Lifespan
-    const customers = await Customer.find().lean();
-    let totalLifespan = 0;
+  const purchaseFrequency = customerCount > 0 ? orderCount / customerCount : 0;
+  console.log(`Purchase frequency: ${purchaseFrequency}`);
 
-    for (const customer of customers) {
-        const firstOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: 1 });
-        console.log(customer);
-        
-        // console.log(firstOrder);
-        
-        const lastOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: -1 });
-// console.log(`firstOrder ${firstOrder}`);
-// console.log(`lastOrder ${lastOrder}`);
-        if (firstOrder && lastOrder) {
-            const lifespan = (lastOrder.createdAt - firstOrder.createdAt) / (1000 * 60 * 60 * 24); // lifespan in days
-            totalLifespan += lifespan;
-        }
-    }
-    const averageLifespan = customers.length > 0 ? totalLifespan / customers.length : 0;
-    console.log(averageLifespan , "averageLifespan");
+  // Step 4: Calculate Customer Lifespan (for all customers in the filter)
+  const customers = await Customer.find({ createdAt: { $gte: dateFilter } }).lean();
+  console.log(`Customers in the filter: ${customers.length}`);
 
-    // Step 4: Calculate Gross Margin
-    const totalSales = await Order.aggregate([
-        { $group: { _id: null, totalSales: { $sum: {$toDouble:"$totalPrice"} } } }
-    ]);
+  let totalLifespan = 0;
+  for (const customer of customers) {
+      const firstOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: 1 });
+      const lastOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: -1 });
 
-    // Handle cases where no sales are found
-    const totalSalesValue = totalSales.length > 0 ? totalSales[0].totalSales : 0;
-    console.log(totalSalesValue , "totalSalesValue");
+      if (firstOrder && lastOrder) {
+          const lifespan = (lastOrder.createdAt - firstOrder.createdAt) / (1000 * 60 * 60 * 24); // lifespan in days
+          totalLifespan += lifespan;
+      }
+  }
 
-    const totalCOGS = await Order.aggregate([
-        { $unwind: "$lineItems" },
-        {
-            $lookup: {
-                from: "products",
-                localField: "lineItems.productId",
-                foreignField: "_id",
-                as: "productDetails"
-            }
-        },
-        { $unwind: "$productDetails" },
-        {
-            $group: {
-                _id: null,
-                totalCOGS: { $sum: { $multiply: ["$productDetails.cost_price", "$lineItems.quantity"] } }
-            }
-        }
-    ]);
+  const averageLifespan = customers.length > 0 ? totalLifespan / customers.length : 0;
+  console.log(`Average lifespan: ${averageLifespan}`);
 
-    // Handle cases where no COGS data is found
-    const totalCOGSValue = totalCOGS.length > 0 ? totalCOGS[0].totalCOGS : 0;
+  // Step 5: Calculate Gross Margin
+  const totalSales = await Order.aggregate([
+      { $match: { createdAt: { $gte: dateFilter } } },
+      { $group: { _id: null, totalSales: { $sum: { $toDouble: "$totalPrice" } } } },
+  ]);
+  const totalSalesValue = totalSales.length > 0 ? totalSales[0].totalSales : 0;
+  console.log(`Total sales value: ${totalSalesValue}`);
 
-    // Avoid division by zero in gross margin calculation
-    const grossMargin = totalSalesValue > 0 ? (totalSalesValue - totalCOGSValue) / totalSalesValue : 0;
-    console.log(grossMargin , "grossMargin");
+  const totalCOGS = await Order.aggregate([
+      { $unwind: "$lineItems" },
+      {
+          $lookup: {
+              from: "products",
+              localField: "lineItems.productId",
+              foreignField: "_id",
+              as: "productDetails",
+          },
+      },
+      { $unwind: "$productDetails" },
+      {
+          $group: {
+              _id: null,
+              totalCOGS: { $sum: { $multiply: ["$productDetails.cost_price", "$lineItems.quantity"] } },
+          },
+      },
+  ]);
+  const totalCOGSValue = totalCOGS.length > 0 ? totalCOGS[0].totalCOGS : 0;
+  const grossMargin = totalSalesValue > 0 ? (totalSalesValue - totalCOGSValue) / totalSalesValue : 0;
+  console.log(`Gross margin: ${grossMargin}`);
 
-    // Step 5: Calculate LTV
-    const LTV = AOV * purchaseFrequency * averageLifespan * grossMargin;
+  // Step 6: Calculate LTV
+  const overallLTV = AOV * purchaseFrequency * averageLifespan * grossMargin;
+  console.log(`Overall LTV: ${overallLTV}`);
 
-    return LTV;
+  // Step 7: Categorize by "New" and "Old" customers
+  const newCustomersCount = await Customer.countDocuments({ createdAt: { $gte: dateFilter } });
+  const oldCustomersCount = await Customer.countDocuments({ createdAt: { $lt: dateFilter } });
+  console.log(`New customers count: ${newCustomersCount}`);
+  console.log(`Old customers count: ${oldCustomersCount}`);
+
+  const newCustomerLTV = overallLTV * (newCustomersCount / (newCustomersCount + oldCustomersCount));
+  const oldCustomerLTV = overallLTV * (oldCustomersCount / (newCustomersCount + oldCustomersCount));
+  console.log(`New customer LTV: ${newCustomerLTV}`);
+  console.log(`Old customer LTV: ${oldCustomerLTV}`);
+
+  // Step 8: Return response based on categories
+  return [
+      { category: "overall", price: overallLTV },
+      { category: "new", price: newCustomerLTV },
+      { category: "old", price: oldCustomerLTV },
+  ];
 };
 
+// Helper function to calculate repeat purchases
+const calculateRepeatPurchases = async (filter) => {
+  const dateFilter = subDays(new Date(), filter);
 
+  const repeatPurchases = await Order.aggregate([
+    { $match: { createdAt: { $gte: dateFilter }, customer: { $ne: null } } },
+    { $group: { _id: "$customer.id", purchases: { $sum: 1 } } },
+    { $sort: { purchases: 1 } }
+  ]);
 
+  return repeatPurchases;
+};
+
+// Function to calculate the repeat purchase rate
+export const calculateRepeatPurchaseRate = async (filter) => {
+  const repeatPurchases = await calculateRepeatPurchases(filter);
+
+  const purchaseRanges = [1, 2, 3, 4, 5, 6]; // Define the range for purchase counts
+  const result = [];
+
+  purchaseRanges.forEach((range, index) => {
+    const currentRangePurchases = repeatPurchases.filter((p) => p.purchases === range).length;
+    const nextRangePurchases = repeatPurchases.filter((p) => p.purchases === range + 1).length;
+
+    const rate = nextRangePurchases > 0 ? (nextRangePurchases / currentRangePurchases) * 100 : 0;
+
+    result.push({
+      label: `${range}th to ${range + 1}th`,
+      purchases: currentRangePurchases,
+      rates: rate,
+    });
+  });
+
+  return result;
+};
+
+// Function to calculate the comparison of repeat purchase rates between current and previous periods
+export const calculateRepeatPurchaseRateCompare = async (filter) => {
+  const currentPeriodPurchases = await calculateRepeatPurchases(filter);
+  const previousPeriodPurchases = await calculateRepeatPurchases(filter * 2); // Previous period
+
+  const purchaseRanges = [1, 2, 3, 4, 5, 6];
+  const comparisonData = [];
+
+  purchaseRanges.forEach((range, index) => {
+    const currentPeriodRangePurchases = currentPeriodPurchases.filter((p) => p.purchases === range).length;
+    const previousPeriodRangePurchases = previousPeriodPurchases.filter((p) => p.purchases === range).length;
+
+    const currentRate = currentPeriodRangePurchases > 0 ? (currentPeriodRangePurchases / previousPeriodRangePurchases) * 100 : 0;
+
+    comparisonData.push({
+      label: `${range}th to ${range + 1}th`,
+      purchases: currentPeriodRangePurchases,
+      rates: currentRate,
+    });
+  });
+
+  return comparisonData;
+};
+
+export const calculateTimeBetweenOrders = async (filter) => {
+  const dateFilter = subDays(new Date(), filter);
+  console.log(`Date filter: Orders since ${dateFilter}`);
+
+  // Step 1: Get all orders within the filtered date range
+  const orders = await Order.aggregate([
+    { $match: { createdAt: { $gte: dateFilter } } },
+    { $sort: { createdAt: 1 } }, // Sort by date to calculate differences
+    { $group: { _id: "$customer.id", orders: { $push: "$createdAt" } } },
+  ]);
+
+  const timeIntervals = [];
+  
+  orders.forEach((order) => {
+    if (order.orders.length > 1) {
+      for (let i = 1; i < order.orders.length; i++) {
+        const timeDifference = (order.orders[i] - order.orders[i - 1]) / (1000 * 60 * 60 * 24); // in days
+        timeIntervals.push(timeDifference);
+      }
+    }
+  });
+
+  if (timeIntervals.length === 0) {
+    return [];
+  }
+
+  const calculateMean = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const calculateMedian = (arr) => {
+    const sorted = arr.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+
+  const timeStats = [];
+  
+  for (let i = 1; i < 7; i++) {
+    const intervalsForStage = timeIntervals.filter((_, index) => index % i === 0); // Group by stages
+    if (intervalsForStage.length > 0) {
+      timeStats.push({
+        label: `${i}st to ${i + 1}nd`,
+        mean: calculateMean(intervalsForStage),
+        median: calculateMedian(intervalsForStage),
+      });
+    }
+  }
+
+  return timeStats;
+};
+
+export const calculateAveragePerOrder = async (filter) => {
+  const dateFilter = subDays(new Date(), filter);
+  console.log(`Date filter: Orders since ${dateFilter}`);
+
+  // Step 1: Get all orders within the filtered date range
+  const orders = await Order.aggregate([
+    { $match: { createdAt: { $gte: dateFilter } } },
+    { $sort: { createdAt: 1 } }, // Sort by date
+    { $group: { _id: "$customer.id", orders: { $push: { totalPrice: "$totalPrice", createdAt: "$createdAt" } } } },
+  ]);
+
+  const averagesPerOrder = [];
+
+  orders.forEach((order) => {
+    if (order.orders.length > 1) {
+      for (let i = 1; i < order.orders.length; i++) {
+        const totalOrderValue = order.orders[i].totalPrice;
+        const orderCount = i + 1;
+
+        averagesPerOrder.push({
+          label: `${i}st to ${i + 1}nd`,
+          order: totalOrderValue,
+          average: totalOrderValue / orderCount,
+        });
+      }
+    }
+  });
+
+  if (averagesPerOrder.length === 0) {
+    return [];
+  }
+
+  return averagesPerOrder;
+};
 
 
 
