@@ -17,14 +17,16 @@ export const getOrdersTrend = async (filter, customStartDate, customEndDate) => 
         endDate = startDate;
         break;
       case 'one_week':
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7);
-        endDate = now;
+        endDate = new Date(now)
+        endDate.setDate(now.getDate() - 1);
+        startDate = new Date(endDate);
+        startDate.setDate(endDate.getDate() - 7)
         break;
       case 'one_month':
-        startDate = new Date(now);
-        startDate.setMonth(now.getMonth() - 1);
-        endDate = now;
+        endDate = new Date(now)
+        endDate.setDate(now.getDate() - 1)
+        startDate = new Date(endDate);
+        startDate.setMonth(endDate.getMonth() - 1);
         break;
       case 'three_months':
         startDate = new Date(now);

@@ -2,7 +2,6 @@ import Order from "./../models/BulkTables/BulkOrder/order.js";
 import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
 import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
 import MetaAdInsights from "./../models/metaAdInsightModel.js";
-import Product from "./../models/BulkTables/BulkProduct/product.js";
 import moment from "moment";
 
 
@@ -18,13 +17,15 @@ export const getDateRange = (filter, customStartDate, customEndDate) => {
     startDate.setDate(now.getDate() - 1);
     endDate = startDate;
   } else if (filter === 'one_week') {
-    startDate = new Date(now);
-    startDate.setDate(now.getDate() - 7);
-    endDate = now;
+    endDate = new Date(now);
+    endDate.setDate(now.getDate() - 1);
+    startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - 7);
   } else if (filter === 'one_month') {
-    startDate = new Date(now);
-    startDate.setMonth(now.getMonth() - 1);
-    endDate = now;
+    endDate = new Date(now)
+    endDate.setDate(now.getDate() - 1)
+    startDate = new Date(endDate);
+    startDate.setMonth(endDate.getMonth() - 1);
   } else if (filter === 'three_months') {
     startDate = new Date(now);
     startDate.setMonth(now.getMonth() - 3);

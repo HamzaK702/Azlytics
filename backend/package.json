@@ -15,6 +15,7 @@
     "@apollo/client": "^3.10.8",
     "apollo-server": "^3.13.0",
     "axios": "^1.7.2",
+    "backend": "file:",
     "bcrpyt": "^2.0.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

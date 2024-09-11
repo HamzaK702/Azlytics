@@ -863,6 +863,8 @@ export const calculateLTV = async () => {
     const totalOrderValue = await Order.aggregate([
         { $group: { _id: null, totalPriceSum: { $sum: { $toDouble: "$totalPrice"} }, orderCount: { $sum: 1 } } }
     ]);
+    console.log(`totalOrderValue ${totalOrderValue}`);
+    
 
     // Handle cases where no orders are found
     const AOV = totalOrderValue.length > 0 ? totalOrderValue[0].totalPriceSum / totalOrderValue[0].orderCount : 0;
@@ -880,8 +882,13 @@ export const calculateLTV = async () => {
 
     for (const customer of customers) {
         const firstOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: 1 });
+        console.log(customer);
+        
+        // console.log(firstOrder);
+        
         const lastOrder = await Order.findOne({ customerId: customer._id }).sort({ createdAt: -1 });
-
+// console.log(`firstOrder ${firstOrder}`);
+// console.log(`lastOrder ${lastOrder}`);
         if (firstOrder && lastOrder) {
             const lifespan = (lastOrder.createdAt - firstOrder.createdAt) / (1000 * 60 * 60 * 24); // lifespan in days
             totalLifespan += lifespan;
