@@ -29,14 +29,10 @@ export const getRepeatRateBySKU = async (req, res) => {
     }
   };
 
-  export const getRepeatRateByProduct= async (req, res) => {
+  export const getRepeatRateByProduct = async (req, res) => {
     try {
-      const repeatRateData = await calculateRepeatRateByProduct();
-  
-      return res.status(200).json({
-        success: true,
-        data: repeatRateData,
-      });
+      const productData = await calculateRepeatRateByProduct();
+      return res.status(200).json(productData);
     } catch (error) {
       console.error('Error calculating repeat rate by product:', error);
       return res.status(500).json({

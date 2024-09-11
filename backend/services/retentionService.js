@@ -6,10 +6,11 @@ import Product from "../models/BulkTables/BulkProduct/product.js";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay,subDays  } from 'date-fns';
 
 export const calculateRepeatRateByCity = async () => {
+  // Fetch total customers by city
   const totalCustomersByCity = await Order.aggregate([
     {
       $match: {
-        customer: { $ne: null }, 
+        customer: { $ne: null },
       }
     },
     {
@@ -25,10 +26,12 @@ export const calculateRepeatRateByCity = async () => {
       }
     }
   ]);
+
+  // Fetch repeat customers by city
   const repeatCustomersByCity = await Order.aggregate([
     {
       $match: {
-        customer: { $ne: null },  
+        customer: { $ne: null },
       }
     },
     {
@@ -63,18 +66,29 @@ export const calculateRepeatRateByCity = async () => {
       }
     }
   ]);
-  return totalCustomersByCity.map((total) => {
-    const repeat = repeatCustomersByCity.find(
-      (r) => r.city === total.city
-    );
+
+  // Prepare cityData and calculate repeatRateConversion
+  const cityData = totalCustomersByCity.map((total) => {
+    const repeat = repeatCustomersByCity.find((r) => r.city === total.city);
     const repeatCustomers = repeat ? repeat.repeatCustomers : 0;
+    
     return {
-      city: total.city,
-      totalCustomers: total.totalCustomers,
-      repeatCustomers,
-      repeatRate: (repeatCustomers / total.totalCustomers) * 100
+      name: total.city,
+      volume: total.totalCustomers
     };
-  });
+  }).sort((a, b) => b.volume - a.volume); // Sort in descending order of volume
+
+  // Calculate repeatRateConversion
+  const totalRepeatCustomers = repeatCustomersByCity.reduce((sum, city) => sum + city.repeatCustomers, 0);
+  const totalCustomers = totalCustomersByCity.reduce((sum, city) => sum + city.totalCustomers, 0);
+
+  const repeatRateConversion = totalCustomers > 0 ? (totalRepeatCustomers / totalCustomers) * 100 : 0;
+
+  // Return the response in the desired format
+  return {
+    cityData,
+    repeatRateConversion: parseFloat(repeatRateConversion.toFixed(2)) // Limit to 2 decimal points
+  };
 };
 
 
@@ -147,6 +161,7 @@ export const calculateRepeatRateBySKU = async () => {
 };
 
 export const calculateRepeatRateByProduct = async () => {
+  // Flatten line items and associate with product and customer details
   const flattenedLineItems = await Order.aggregate([
     { $unwind: "$lineItems" },
     {
@@ -166,73 +181,26 @@ export const calculateRepeatRateByProduct = async () => {
       }
     }
   ]);
+
+  // Calculate total customers for each product
   const totalCustomersByProduct = flattenedLineItems.reduce((acc, item) => {
     const productKey = `${item.productId}-${item.productTitle}`;
     if (!acc[productKey]) acc[productKey] = new Set();
     acc[productKey].add(item.customerId);
     return acc;
   }, {});
+
+  // Map total customers for each product to a new structure
   const totalCustomers = Object.entries(totalCustomersByProduct).map(([productKey, customerSet]) => {
     const [productId, productTitle] = productKey.split("-");
     return {
-      productId,
-      productTitle,
-      totalCustomersCount: customerSet.size
+      name: productTitle,
+      volume: customerSet.size
     };
   });
-  const repeatCustomersByProduct = await Order.aggregate([
-    { $unwind: "$lineItems" },
-    {
-      $lookup: {
-        from: "products",
-        localField: "lineItems.product.id",
-        foreignField: "id",
-        as: "productData"
-      }
-    },
-    { $unwind: "$productData" },
-    {
-      $lookup: {
-        from: "customers",
-        localField: "customer.id",
-        foreignField: "id",
-        as: "customerData"
-      }
-    },
-    { $unwind: "$customerData" },
-    {
-      $match: {
-        "customerData.numberOfOrders": { $gt: 1 }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          productId: "$productData.id",
-          productTitle: "$productData.title"
-        },
-        repeatCustomers: { $addToSet: "$customer.id" }
-      }
-    },
-    {
-      $project: {
-        productId: "$_id.productId",
-        productTitle: "$_id.productTitle",
-        repeatCustomersCount: { $size: "$repeatCustomers" }
-      }
-    }
-  ]);
-  return totalCustomers.map((total) => {
-    const repeat = repeatCustomersByProduct.find((r) => r.productId === total.productId);
-    const repeatCustomersCount = repeat ? repeat.repeatCustomersCount : 0;
-    return {
-      productId: total.productId,
-      productTitle: total.productTitle,
-      totalCustomersCount: total.totalCustomersCount,
-      repeatCustomersCount: repeatCustomersCount,
-      repeatRate: (repeatCustomersCount / total.totalCustomersCount) * 100
-    };
-  });
+
+  // Sort products by volume in descending order
+  return totalCustomers.sort((a, b) => b.volume - a.volume);
 };
 
 
@@ -953,7 +921,6 @@ export const calculateLTV = async (filter) => {
   ];
 };
 
-// Helper function to calculate repeat purchases
 const calculateRepeatPurchases = async (filter) => {
   const dateFilter = subDays(new Date(), filter);
 
@@ -966,7 +933,6 @@ const calculateRepeatPurchases = async (filter) => {
   return repeatPurchases;
 };
 
-// Function to calculate the repeat purchase rate
 export const calculateRepeatPurchaseRate = async (filter) => {
   const repeatPurchases = await calculateRepeatPurchases(filter);
 
@@ -989,10 +955,9 @@ export const calculateRepeatPurchaseRate = async (filter) => {
   return result;
 };
 
-// Function to calculate the comparison of repeat purchase rates between current and previous periods
 export const calculateRepeatPurchaseRateCompare = async (filter) => {
   const currentPeriodPurchases = await calculateRepeatPurchases(filter);
-  const previousPeriodPurchases = await calculateRepeatPurchases(filter * 2); // Previous period
+  const previousPeriodPurchases = await calculateRepeatPurchases(filter * 2); 
 
   const purchaseRanges = [1, 2, 3, 4, 5, 6];
   const comparisonData = [];
@@ -1002,11 +967,14 @@ export const calculateRepeatPurchaseRateCompare = async (filter) => {
     const previousPeriodRangePurchases = previousPeriodPurchases.filter((p) => p.purchases === range).length;
 
     const currentRate = currentPeriodRangePurchases > 0 ? (currentPeriodRangePurchases / previousPeriodRangePurchases) * 100 : 0;
+    const previousRate = previousPeriodRangePurchases > 0 ? (previousPeriodRangePurchases / currentPeriodRangePurchases) * 100 : 0;
 
     comparisonData.push({
       label: `${range}th to ${range + 1}th`,
       purchases: currentPeriodRangePurchases,
       rates: currentRate,
+      previousPurchases: previousPeriodRangePurchases,
+      previousRates: previousRate
     });
   });
 
