@@ -1034,28 +1034,47 @@ export const calculateAveragePerOrder = async (filter) => {
   const dateFilter = subDays(new Date(), filter);
   console.log(`Date filter: Orders since ${dateFilter}`);
 
-  // Step 1: Get all orders within the filtered date range
   const orders = await Order.aggregate([
     { $match: { createdAt: { $gte: dateFilter } } },
-    { $sort: { createdAt: 1 } }, // Sort by date
-    { $group: { _id: "$customer.id", orders: { $push: { totalPrice: "$totalPrice", createdAt: "$createdAt" } } } },
+    { $sort: { createdAt: 1 } }, 
+    { $group: { _id: "$customer.id", orders: { $push: { totalPrice: { $toDouble: "$totalPrice" }, createdAt: "$createdAt" } } } },
   ]);
 
-  const averagesPerOrder = [];
+  const aggregatedData = {};
 
   orders.forEach((order) => {
     if (order.orders.length > 1) {
       for (let i = 1; i < order.orders.length; i++) {
-        const totalOrderValue = order.orders[i].totalPrice;
-        const orderCount = i + 1;
+        let totalOrderValue = order.orders[i].totalPrice;
 
-        averagesPerOrder.push({
-          label: `${i}st to ${i + 1}nd`,
-          order: totalOrderValue,
-          average: totalOrderValue / orderCount,
-        });
+        if (totalOrderValue < 1) {
+          totalOrderValue *= 100; 
+        }
+
+        const label = `${i}${getOrdinalSuffix(i)} to ${i + 1}${getOrdinalSuffix(i + 1)}`;
+
+        if (!aggregatedData[label]) {
+          aggregatedData[label] = { totalOrderValue: 0, orderCount: 0 };
+        }
+
+        aggregatedData[label].totalOrderValue += totalOrderValue;
+        aggregatedData[label].orderCount += 1;
+
+        console.log(`Label: ${label}, Total Order Value: ${totalOrderValue}, Order Count: ${aggregatedData[label].orderCount}`);
       }
     }
+  });
+
+  const averagesPerOrder = Object.keys(aggregatedData).map((label) => {
+    const { totalOrderValue, orderCount } = aggregatedData[label];
+    
+    // console.log(`Final Label: ${label}, Total Value: ${totalOrderValue}, Number of Orders: ${orderCount}`);
+
+    return {
+      label: label,
+      order: Math.round(totalOrderValue * 100) / 100,
+      average: Math.round((totalOrderValue / orderCount) * 100) / 100, 
+    };
   });
 
   if (averagesPerOrder.length === 0) {
@@ -1065,6 +1084,20 @@ export const calculateAveragePerOrder = async (filter) => {
   return averagesPerOrder;
 };
 
+const getOrdinalSuffix = (i) => {
+  const j = i % 10,
+    k = i % 100;
+  if (j == 1 && k != 11) {
+    return "st";
+  }
+  if (j == 2 && k != 12) {
+    return "nd";
+  }
+  if (j == 3 && k != 13) {
+    return "rd";
+  }
+  return "th";
+};
 
 
 
