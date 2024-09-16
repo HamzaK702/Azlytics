@@ -9,7 +9,6 @@ export const getOrdersTrend = async (filter, customStartDate, customEndDate) => 
     let startDate;
     let endDate;
 
-    // Set start and end dates based on filter
     switch (filter) {
       case 'yesterday':
         startDate = new Date(now);
@@ -17,14 +16,14 @@ export const getOrdersTrend = async (filter, customStartDate, customEndDate) => 
         endDate = startDate;
         break;
       case 'one_week':
-        endDate = new Date(now)
+        endDate = new Date(now);
         endDate.setDate(now.getDate() - 1);
         startDate = new Date(endDate);
-        startDate.setDate(endDate.getDate() - 7)
+        startDate.setDate(endDate.getDate() - 7);
         break;
       case 'one_month':
-        endDate = new Date(now)
-        endDate.setDate(now.getDate() - 1)
+        endDate = new Date(now);
+        endDate.setDate(now.getDate() - 1);
         startDate = new Date(endDate);
         startDate.setMonth(endDate.getMonth() - 1);
         break;
@@ -54,118 +53,78 @@ export const getOrdersTrend = async (filter, customStartDate, customEndDate) => 
         throw new Error('Invalid filter specified');
     }
 
-    // Convert start and end dates to ISO format for MongoDB query
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
-    // Calculate the day difference between startDate and endDate
     const dayDifference = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-
-    // Determine date format based on the day difference
     const dateFormat = dayDifference <= 60 ? '%Y-%m-%d' : '%Y-%m';
 
-    // Aggregation pipeline for fetching and processing orders
     const pipeline = [
-      // Match orders within the specified date range
       {
         $match: {
           createdAt: { $gte: new Date(startDateISO), $lte: new Date(endDateISO) },
         },
       },
-      // Lookup to join with customers collection
       {
-        $lookup: {
-          from: 'customers',
-          localField: 'customer',
-          foreignField: '_id',
-          as: 'customerDetails',
-        },
+        $unwind: "$lineItems"
       },
-      // Unwind customer details array
-      {
-        $unwind: { path: '$customerDetails', preserveNullAndEmptyArrays: true },
-      },
-      // Add fields to determine if the order is new or returning
-      {
-        $addFields: {
-          customerCreatedAt: { $ifNull: ['$customerDetails.createdAt', null] },
-          isNewCustomer: {
-            $cond: [
-              { $eq: ['$createdAt', '$customerDetails.createdAt'] },
-              true,
-              false,
-            ],
-          },
-        },
-      },
-      // Group by date or month based on the calculated difference
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+            productId: "$lineItems.productId",
+            productTitle: "$lineItems.title",
+            date: { $dateToString: { format: dateFormat, date: '$createdAt' } }
           },
-          totalOrders: { $sum: 1 },
-          newCustomerOrders: { $sum: { $cond: ['$isNewCustomer', 1, 0] } },
-          returningCustomerOrders: { $sum: { $cond: [{ $not: ['$isNewCustomer'] }, 1, 0] } },
+          totalQuantitySold: { $sum: "$lineItems.quantity" }
         },
       },
-      // Sort results by date
       {
-        $sort: { '_id.date': 1 },
+        $group: {
+          _id: {
+            productId: "$_id.productId",
+            productTitle: "$_id.productTitle"
+          },
+          dates: {
+            $push: {
+              date: "$_id.date",
+              quantitySold: "$totalQuantitySold"
+            }
+          },
+          totalQuantity: { $sum: "$totalQuantitySold" } 
+        }
       },
-      // Format the results
       {
         $project: {
-          _id: 0,
-          orderDate: '$_id.date',
-          totalOrders: 1,
-          newCustomerOrders: 1,
-          returningCustomerOrders: 1,
-        },
-      },
+          id: "$_id.productId",
+          title: "$_id.productTitle",
+          dates: 1,
+          average: { $divide: ["$totalQuantity", dayDifference] }
+        }
+      }
     ];
 
-    // Execute the aggregation pipeline
     const results = await Order.aggregate(pipeline);
 
-    // Create an array of all dates or months between start and end dates
-    const dateArray = [];
-    let currentDate = new Date(startDate);
+    const finalResults = results.map(product => {
+      const datesObj = product.dates.reduce((acc, dateItem) => {
+        acc[dateItem.date] = dateItem.quantitySold;
+        return acc;
+      }, {});
 
-    if (dayDifference <= 60) {
-      // Day-wise date array
-      while (currentDate <= endDate) {
-        dateArray.push(currentDate.toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-    } else {
-      // Month-wise date array
-      while (currentDate <= endDate) {
-        const month = currentDate.getMonth() + 1; // Month is 0-indexed
-        const year = currentDate.getFullYear();
-        dateArray.push(`${year}-${month.toString().padStart(2, '0')}`);
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
-    }
-
-    // Create a map from the results for easy look-up
-    const resultMap = results.reduce((acc, result) => {
-      acc[result.orderDate] = result;
-      return acc;
-    }, {});
-
-    // Fill in missing dates or months with zero values
-    const finalResults = dateArray.map((date) => {
-      return resultMap[date] || {
-        orderDate: date,
-        totalOrders: 0,
-        newCustomerOrders: 0,
-        returningCustomerOrders: 0,
+      return {
+        id: product.id,
+        title: product.title,
+        average: product.average,
+        values: Object.keys(datesObj).map(date => ({
+          date: date,
+          value: datesObj[date] || 0 
+        }))
       };
     });
 
-    // Return the final results
-    return finalResults;
+    return {
+      products: finalResults
+    };
   } catch (error) {
     console.error('Error fetching orders trend:', error.message);
     throw new Error('Error fetching orders trend');
