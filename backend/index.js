@@ -14,6 +14,7 @@ import bulkRoutes from  './routes/bulkRoutes.js';
 import ordersRoutes from './routes/ordersRoutes.js';
 import salesRoutes from './routes/salesRoutes.js';
 import retentionRoutes from "./routes/retentionRoutes.js"
+import InventoryRoutes from "./routes/InventoryRoutes.js"
 import customerAnalyticRoutes from "./routes/customerAnalyticRoutes.js";
 import { ShopifyService } from "./services/ShopifyService.js";
 import googleAdAuthRoutes from './routes/googleAdRoutes.js';
@@ -75,6 +76,7 @@ app.use('/api' , retentionRoutes);
 app.use('/api' , customerAnalyticRoutes);
 app.use('/api' , overHeadCostRoute);
 app.use('/api' , productRoutes);
+app.use('/api' , InventoryRoutes);
 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;
