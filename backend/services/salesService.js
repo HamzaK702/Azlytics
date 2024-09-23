@@ -1391,10 +1391,19 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
   try {
     // Get the date range
     const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
-    
-    // Generate the array of dates
-    const dates = generateDateArray(startDate, endDate);
-    
+
+    // Determine whether to group by day or month
+    let groupBy = 'day';
+    if (filter === 'three_months' || filter === 'six_months') {
+      groupBy = 'month';
+    }
+
+    // Generate the array of dates or months
+    const dateArray = groupBy === 'month' ? generateMonthArray(startDate, endDate) : generateDateArray(startDate, endDate);
+
+    // Set the group format based on groupBy
+    const groupFormat = groupBy === 'month' ? "%Y-%m" : "%Y-%m-%d";
+
     // Convert dates to strings for querying MetaAdInsights
     const startDateString = startDate.toISOString().split('T')[0];
     const endDateString = endDate.toISOString().split('T')[0];
@@ -1409,7 +1418,7 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       },
       {
         $group: {
-          _id: "$date",
+          _id: { $dateToString: { format: groupFormat, date: { $toDate: "$date" } } },
           totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
         },
       },
@@ -1425,7 +1434,7 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          _id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
           uniqueCustomers: { $addToSet: "$customer.id" } // Collect unique customer IDs
         },
       },
@@ -1448,17 +1457,21 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       return acc;
     }, {});
 
-    // Format the data by date and calculate daily Blended CAC
-    const formattedData = dates.map(date => {
-      const dateString = date.toISOString().split('T')[0];
+    // Format the data by date or month and calculate Blended CAC
+    const formattedData = dateArray.map(date => {
+      const dateString = groupBy === 'month'
+        ? date.toISOString().slice(0,7) // Get 'YYYY-MM'
+        : date.toISOString().split('T')[0]; // Get 'YYYY-MM-DD'
+
       const adSpend = adSpendMap[dateString] || 0;
       const uniqueCustomers = uniqueCustomerMap[dateString] || 0;
-      const dailyBlendedCAC = uniqueCustomers > 0 ? adSpend / uniqueCustomers : 0;
+      const blendedCAC = uniqueCustomers > 0 ? adSpend / uniqueCustomers : 0;
+
       return {
         date: dateString,
         adSpend,
         uniqueCustomers,
-        blendedCAC: dailyBlendedCAC,
+        blendedCAC: blendedCAC,
       };
     });
 
@@ -1467,17 +1480,20 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
     const totalUniqueCustomers = formattedData.reduce((sum, { uniqueCustomers }) => sum + uniqueCustomers, 0);
     const blendedCAC = totalUniqueCustomers > 0 ? totalAdSpend / totalUniqueCustomers : 0;
 
+    const dataKey = groupBy === 'month' ? 'dataByMonth' : 'dataByDate';
+
     return {
       totalAdSpend: totalAdSpend,
       totalUniqueCustomers,
       blendedCAC: blendedCAC,
-      dataByDate: formattedData,
+      [dataKey]: formattedData,
     };
   } catch (error) {
     console.error('Error in calculateBlendedCAC:', error.message);
     throw error;
   }
 };
+
 
 export const getBlendedCACComparison = async (filter, customStartDate, customEndDate) => {
   try {
