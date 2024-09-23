@@ -23,10 +23,8 @@ import Product from "./models/BulkTables/BulkProduct/product.js";
 import overHeadCostRoute from "./routes/overheadCostRoute.js";
 import productRoutes from "./routes/productRoutes.js";
 
-
 /* CONFIGURATIONS */
 dotenv.config();
-
 
 const app = express();
 
