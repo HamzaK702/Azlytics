@@ -603,155 +603,100 @@ const breakCityDataIntoQuarters = (data) => {
 
 
 
-const getTopCities = async (filter, customStartDate, customEndDate , granularity) => {
+const getTopCities = async (filter, customStartDate, customEndDate, granularity) => {
   try {
     const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
-    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
-    const orders = await Order.find({
-      createdAt: { $gte: startDateISO, $lte: endDateISO },
-    }, "createdAt customer.id shippingAddress.city")
-      .populate("customer.id", "createdAt numberOfOrders");
+    // Fetch new customers within the date range
+    const customers = await Customer.find(
+      {
+        createdAt: { $gte: startDateISO, $lte: endDateISO },
+        numberOfOrders: '1',
+      },
+      'createdAt defaultAddress.city'
+    );
 
-    const customerData = await Customer.find({}, "id createdAt numberOfOrders");
+    // Initialize an object to hold city data
+    const cityData = {};
 
-    const cityData = {
-      newCustomers: {},
-      returningCustomers: {},
+    // Helper functions
+    const getWeekNumber = (date) => {
+      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+      const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+      return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
     };
 
-    orders.forEach((order) => {
-      if (!order.customer || !order.customer.id) return;
-
-      const customer = customerData.find((c) => c.id === order.customer.id);
-
-      if (customer) {
-        const isNewCustomer = customer.numberOfOrders === "1";
-        const city = order.shippingAddress.city;
-
-        // Skip counting if city is null or empty
-        if (!city) return;
-
-        const date = new Date(order.createdAt);
-        const formattedDate = date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
-      
-
-        if (isNewCustomer) {
-          if (!cityData.newCustomers[formattedDate]) cityData.newCustomers[formattedDate] = {};
-          if (!cityData.newCustomers[formattedDate][city]) cityData.newCustomers[formattedDate][city] = 0;
-          cityData.newCustomers[formattedDate][city]++;
-        } else {
-          if (!cityData.returningCustomers[formattedDate]) cityData.returningCustomers[formattedDate] = {};
-          if (!cityData.returningCustomers[formattedDate][city]) cityData.returningCustomers[formattedDate][city] = 0;
-          cityData.returningCustomers[formattedDate][city]++;
-        }
-      }
-    });
-
-    const generateDateOrMonthArray = (startDate, endDate) => {
-      const results = [];
-      let currentDate = new Date(startDate);
-      
-      while (currentDate <= endDate) {
-        results.push(new Date(currentDate));
-       
-          currentDate.setDate(currentDate.getDate() + 1);
-        
-      }
-
-      return results;
-    };
-
-    const allPeriods = generateDateOrMonthArray(startDate, endDate);
-    const initializeCityData = (data) => {
-      return allPeriods.reduce((acc, date) => {
-        const dateKey = date.toISOString().split('T')[0];
-        acc[dateKey] = acc[dateKey] || {};
-        return acc;
-      }, data);
-    };
-
-    const initializedNewCustomers = initializeCityData({});
-    const initializedReturningCustomers = initializeCityData({});
-    const mergeCityData = (actualData, initializedData) => {
-      for (const [date, cities] of Object.entries(actualData)) {
-        if (!initializedData[date]) initializedData[date] = {};
-        for (const [city, count] of Object.entries(cities)) {
-          initializedData[date][city] = count;
-        }
-      }
-      return initializedData;
-    };
-
-    const mergedNewCustomers = mergeCityData(cityData.newCustomers, initializedNewCustomers);
-    const mergedReturningCustomers = mergeCityData(cityData.returningCustomers, initializedReturningCustomers);
-
-    const breakData = (data, granularity) => {
-      console.log(data, "check");
+    const formatPeriod = (date) => {
       switch (granularity) {
         case 'week':
-          return breakCityDataIntoWeeks(data);
+          const weekNumber = getWeekNumber(date);
+          return `${date.getFullYear()}-W${('0' + weekNumber).slice(-2)}`; // YYYY-WNN
         case 'month':
-          return breakCityDataIntoMonths(data);
+          return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}`; // YYYY-MM
         case 'quarter':
-          return breakCityDataIntoQuarters(data);
+          const quarter = Math.floor(date.getMonth() / 3) + 1;
+          return `${date.getFullYear()}-Q${quarter}`; // YYYY-QN
         case 'day':
         default:
-          return Object.entries(data).map(([date, cities]) => {
-            const totalCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
-            return { date, totalCount };
-          });
+          return date.toISOString().split('T')[0]; // YYYY-MM-DD
       }
     };
 
-    const formatCityData = (cityData) => {
-      const result = [];
-      let totalUserCount = 0; 
-      let totalNewUserCount = 0; 
-      let totalReturningUserCount = 0; 
-    
-      cityData.forEach(({ date, totalCount }) => {
-        totalUserCount += totalCount;
-        totalNewUserCount += totalCount; 
-        result.push({ date, totalCount });
-      });
-  
-      result.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-      return { rankedData: result, totalUserCount, totalNewUserCount, totalReturningUserCount };
+    const generateAllPeriods = (startDate, endDate) => {
+      const periods = new Set();
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        periods.add(formatPeriod(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return Array.from(periods).sort();
     };
-    
 
-    const formattedNewCustomers = breakData(mergedNewCustomers, granularity);
-    const formattedReturningCustomers = breakData(mergedReturningCustomers, granularity);
+    const allPeriods = generateAllPeriods(startDate, endDate);
 
-    console.log('Formatted New Customers:', formattedNewCustomers);
+    // Process each customer
+    customers.forEach((customer) => {
+      const city = customer.defaultAddress?.city;
 
-    const { rankedData: rankedNewCustomers, totalUserCount: totalNewUserCount } = formatCityData(formattedNewCustomers);
-    const { rankedData: rankedReturningCustomers, totalUserCount: totalReturningUserCount } = formatCityData(formattedReturningCustomers);
+      // Skip if city is null or empty
+      if (!city) return;
 
-    const totalUserCount = totalNewUserCount + totalReturningUserCount; // Total users across both new and returning customers
+      const date = new Date(customer.createdAt);
+      const periodKey = formatPeriod(date);
 
-    const mergedData = rankedNewCustomers.map(({ date, totalCount }) => {
-      const newCustomerCount = rankedNewCustomers.find(d => d.date === date)?.totalCount || 0;
-      const returningCustomerCount = rankedReturningCustomers.find(d => d.date === date)?.totalCount || 0;
-      const totalCustomer = newCustomerCount + returningCustomerCount;
+      if (!cityData[city]) {
+        cityData[city] = {
+          totalCustomers: 0,
+          periods: {},
+        };
+        // Initialize periods with zero counts
+        allPeriods.forEach((period) => {
+          cityData[city].periods[period] = 0;
+        });
+      }
 
-      return {
-        date,
-        totalCustomer,
-        newCustomers: newCustomerCount,
-        returningCustomers: returningCustomerCount
-      };
+      cityData[city].totalCustomers++;
+      cityData[city].periods[periodKey]++;
     });
 
+    // Convert cityData to an array and sort based on total customers
+    const cityArray = Object.keys(cityData).map((city) => ({
+      city,
+      totalCustomers: cityData[city].totalCustomers,
+      periods: cityData[city].periods,
+    }));
+
+    // Sort the cities based on totalCustomers
+    cityArray.sort((a, b) => b.totalCustomers - a.totalCustomers);
+
+    // Get the top 3 cities
+    const topCities = cityArray.slice(0, 3);
+
+    // Return the data in the required format
     return {
-     data: mergedData,
-      totalUserCount,          // Total users across all cities
-      totalNewUserCount,       // Total new users
-      totalReturningUserCount  // Total returning users
+      data: topCities,
     };
   } catch (error) {
     throw new Error(error.message);

@@ -73,16 +73,16 @@ export const fetchAOVComparison = async (req, res) => {
   }
 };
 
-export const getTopCities = async (req , res)=>{
+export const getTopCities = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate , granularity  } = req.query;
-    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate , granularity );
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
+    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate, granularity);
     res.status(200).json(topCitiesData);
   } catch (error) {
     console.error('Error fetching top cities:', error.message);
     res.status(500).json({ message: 'An error occurred while fetching top cities.' });
   }
-}
+};
 
 export const getTopCitiesComparison = async (req, res) => {
   try {
