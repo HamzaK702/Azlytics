@@ -73,16 +73,16 @@ export const fetchAOVComparison = async (req, res) => {
   }
 };
 
-export const getTopCities = async (req , res)=>{
+export const getTopCities = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate , granularity  } = req.query;
-    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate , granularity );
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
+    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate, granularity);
     res.status(200).json(topCitiesData);
   } catch (error) {
     console.error('Error fetching top cities:', error.message);
     res.status(500).json({ message: 'An error occurred while fetching top cities.' });
   }
-}
+};
 
 export const getTopCitiesComparison = async (req, res) => {
   try {
@@ -108,13 +108,14 @@ export const getTopCitiesComparison = async (req, res) => {
 
 export const getTopSKUs = async (req, res) => {
   try {
-    const skus = await salesService.getTopSKUs();
-    res.json(skus);
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
+    const skusData = await salesService.getTopSKUs(filter, customStartDate, customEndDate, granularity);
+    res.status(200).json(skusData);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('Error fetching top SKUs:', error.message);
+    res.status(500).json({ message: 'An error occurred while fetching top SKUs.' });
   }
-}
+};
 
 export const getGrossSales = async (req, res) => {
   try {

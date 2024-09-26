@@ -1,5 +1,6 @@
 import Order from "./../models/BulkTables/BulkOrder/order.js";
 import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
+import Product from "./../models/BulkTables/BulkProduct/product.js";
 import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
 import MetaAdInsights from "./../models/metaAdInsightModel.js";
 import moment from "moment";
@@ -603,155 +604,100 @@ const breakCityDataIntoQuarters = (data) => {
 
 
 
-const getTopCities = async (filter, customStartDate, customEndDate , granularity) => {
+const getTopCities = async (filter, customStartDate, customEndDate, granularity) => {
   try {
     const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
-    const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
-    const orders = await Order.find({
-      createdAt: { $gte: startDateISO, $lte: endDateISO },
-    }, "createdAt customer.id shippingAddress.city")
-      .populate("customer.id", "createdAt numberOfOrders");
+    // Fetch new customers within the date range
+    const customers = await Customer.find(
+      {
+        createdAt: { $gte: startDateISO, $lte: endDateISO },
+        numberOfOrders: '1',
+      },
+      'createdAt defaultAddress.city'
+    );
 
-    const customerData = await Customer.find({}, "id createdAt numberOfOrders");
+    // Initialize an object to hold city data
+    const cityData = {};
 
-    const cityData = {
-      newCustomers: {},
-      returningCustomers: {},
+    // Helper functions
+    const getWeekNumber = (date) => {
+      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+      const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+      return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
     };
 
-    orders.forEach((order) => {
-      if (!order.customer || !order.customer.id) return;
-
-      const customer = customerData.find((c) => c.id === order.customer.id);
-
-      if (customer) {
-        const isNewCustomer = customer.numberOfOrders === "1";
-        const city = order.shippingAddress.city;
-
-        // Skip counting if city is null or empty
-        if (!city) return;
-
-        const date = new Date(order.createdAt);
-        const formattedDate = date.toISOString().split('T')[0] // Format date as YYYY-MM-DD
-      
-
-        if (isNewCustomer) {
-          if (!cityData.newCustomers[formattedDate]) cityData.newCustomers[formattedDate] = {};
-          if (!cityData.newCustomers[formattedDate][city]) cityData.newCustomers[formattedDate][city] = 0;
-          cityData.newCustomers[formattedDate][city]++;
-        } else {
-          if (!cityData.returningCustomers[formattedDate]) cityData.returningCustomers[formattedDate] = {};
-          if (!cityData.returningCustomers[formattedDate][city]) cityData.returningCustomers[formattedDate][city] = 0;
-          cityData.returningCustomers[formattedDate][city]++;
-        }
-      }
-    });
-
-    const generateDateOrMonthArray = (startDate, endDate) => {
-      const results = [];
-      let currentDate = new Date(startDate);
-      
-      while (currentDate <= endDate) {
-        results.push(new Date(currentDate));
-       
-          currentDate.setDate(currentDate.getDate() + 1);
-        
-      }
-
-      return results;
-    };
-
-    const allPeriods = generateDateOrMonthArray(startDate, endDate);
-    const initializeCityData = (data) => {
-      return allPeriods.reduce((acc, date) => {
-        const dateKey = date.toISOString().split('T')[0];
-        acc[dateKey] = acc[dateKey] || {};
-        return acc;
-      }, data);
-    };
-
-    const initializedNewCustomers = initializeCityData({});
-    const initializedReturningCustomers = initializeCityData({});
-    const mergeCityData = (actualData, initializedData) => {
-      for (const [date, cities] of Object.entries(actualData)) {
-        if (!initializedData[date]) initializedData[date] = {};
-        for (const [city, count] of Object.entries(cities)) {
-          initializedData[date][city] = count;
-        }
-      }
-      return initializedData;
-    };
-
-    const mergedNewCustomers = mergeCityData(cityData.newCustomers, initializedNewCustomers);
-    const mergedReturningCustomers = mergeCityData(cityData.returningCustomers, initializedReturningCustomers);
-
-    const breakData = (data, granularity) => {
-      console.log(data, "check");
+    const formatPeriod = (date) => {
       switch (granularity) {
         case 'week':
-          return breakCityDataIntoWeeks(data);
+          const weekNumber = getWeekNumber(date);
+          return `${date.getFullYear()}-W${('0' + weekNumber).slice(-2)}`; // YYYY-WNN
         case 'month':
-          return breakCityDataIntoMonths(data);
+          return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}`; // YYYY-MM
         case 'quarter':
-          return breakCityDataIntoQuarters(data);
+          const quarter = Math.floor(date.getMonth() / 3) + 1;
+          return `${date.getFullYear()}-Q${quarter}`; // YYYY-QN
         case 'day':
         default:
-          return Object.entries(data).map(([date, cities]) => {
-            const totalCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
-            return { date, totalCount };
-          });
+          return date.toISOString().split('T')[0]; // YYYY-MM-DD
       }
     };
 
-    const formatCityData = (cityData) => {
-      const result = [];
-      let totalUserCount = 0; 
-      let totalNewUserCount = 0; 
-      let totalReturningUserCount = 0; 
-    
-      cityData.forEach(({ date, totalCount }) => {
-        totalUserCount += totalCount;
-        totalNewUserCount += totalCount; 
-        result.push({ date, totalCount });
-      });
-  
-      result.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-      return { rankedData: result, totalUserCount, totalNewUserCount, totalReturningUserCount };
+    const generateAllPeriods = (startDate, endDate) => {
+      const periods = new Set();
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        periods.add(formatPeriod(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return Array.from(periods).sort();
     };
-    
 
-    const formattedNewCustomers = breakData(mergedNewCustomers, granularity);
-    const formattedReturningCustomers = breakData(mergedReturningCustomers, granularity);
+    const allPeriods = generateAllPeriods(startDate, endDate);
 
-    console.log('Formatted New Customers:', formattedNewCustomers);
+    // Process each customer
+    customers.forEach((customer) => {
+      const city = customer.defaultAddress?.city;
 
-    const { rankedData: rankedNewCustomers, totalUserCount: totalNewUserCount } = formatCityData(formattedNewCustomers);
-    const { rankedData: rankedReturningCustomers, totalUserCount: totalReturningUserCount } = formatCityData(formattedReturningCustomers);
+      // Skip if city is null or empty
+      if (!city) return;
 
-    const totalUserCount = totalNewUserCount + totalReturningUserCount; // Total users across both new and returning customers
+      const date = new Date(customer.createdAt);
+      const periodKey = formatPeriod(date);
 
-    const mergedData = rankedNewCustomers.map(({ date, totalCount }) => {
-      const newCustomerCount = rankedNewCustomers.find(d => d.date === date)?.totalCount || 0;
-      const returningCustomerCount = rankedReturningCustomers.find(d => d.date === date)?.totalCount || 0;
-      const totalCustomer = newCustomerCount + returningCustomerCount;
+      if (!cityData[city]) {
+        cityData[city] = {
+          totalCustomers: 0,
+          periods: {},
+        };
+        // Initialize periods with zero counts
+        allPeriods.forEach((period) => {
+          cityData[city].periods[period] = 0;
+        });
+      }
 
-      return {
-        date,
-        totalCustomer,
-        newCustomers: newCustomerCount,
-        returningCustomers: returningCustomerCount
-      };
+      cityData[city].totalCustomers++;
+      cityData[city].periods[periodKey]++;
     });
 
+    // Convert cityData to an array and sort based on total customers
+    const cityArray = Object.keys(cityData).map((city) => ({
+      city,
+      totalCustomers: cityData[city].totalCustomers,
+      periods: cityData[city].periods,
+    }));
+
+    // Sort the cities based on totalCustomers
+    cityArray.sort((a, b) => b.totalCustomers - a.totalCustomers);
+
+    // Get the top 3 cities
+    const topCities = cityArray.slice(0, 3);
+
+    // Return the data in the required format
     return {
-     data: mergedData,
-      totalUserCount,          // Total users across all cities
-      totalNewUserCount,       // Total new users
-      totalReturningUserCount  // Total returning users
+      data: topCities,
     };
   } catch (error) {
     throw new Error(error.message);
@@ -807,62 +753,168 @@ const calculatePercentageChange = (current, previous) => {
   return ((current - previous) / previous) * 100;
 };
 
-
-
-
-
-
-
-const getTopSKUs = async () => {
+// salesService.js
+ // salesService.js
+const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) => {
   try {
-    const orders = await Order.find({}, "id createdAt customer.id");
+    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const startDateISO = startDate.toISOString();
+    const endDateISO = endDate.toISOString();
 
-    const lineItems = await LineItem.find({}, "id quantity product __parentId");
+    // Fetch orders within the date range
+    const orders = await Order.find(
+      {
+        createdAt: { $gte: startDateISO, $lte: endDateISO },
+      },
+      'id createdAt customer.id lineItems'
+    );
 
-    const customers = await Customer.find({}, "id createdAt numberOfOrders");
+    // Get unique customer IDs from orders
+    const customerIds = orders.map(order => order.customer?.id).filter(id => id);
+    const uniqueCustomerIds = [...new Set(customerIds)];
 
-    const skuData = {
-      newCustomers: {},
-      returningCustomers: {},
-    };
+    // Fetch customer data
+    const customers = await Customer.find(
+      { id: { $in: uniqueCustomerIds } },
+      'id numberOfOrders'
+    );
 
-    orders.forEach((order) => {
-      const customer = customers.find((c) => c.id === order.customer.id);
-      if (!customer) return;
+    // Build a map of customer ID to customer data
+    const customerMap = {};
+    customers.forEach(customer => {
+      customerMap[customer.id] = customer;
+    });
 
-      const isNewCustomer = customer.numberOfOrders === "1";
-      const orderLineItems = lineItems.filter(
-        (item) => item.__parentId === order.id
-      );
+    // Filter for new customer orders
+    const newCustomerOrders = orders.filter(order => {
+      const customerId = order.customer?.id;
+      const customer = customerMap[customerId];
+      return customer && customer.numberOfOrders === '1';
+    });
 
-      orderLineItems.forEach((item) => {
-        const sku = item.product.sku;
-        const quantity = item.quantity;
-
-        if (isNewCustomer) {
-          if (!skuData.newCustomers[sku]) skuData.newCustomers[sku] = 0;
-          skuData.newCustomers[sku] += quantity;
-        } else {
-          if (!skuData.returningCustomers[sku])
-            skuData.returningCustomers[sku] = 0;
-          skuData.returningCustomers[sku] += quantity;
+    // **Extract product IDs from line items**
+    const productIds = [];
+    newCustomerOrders.forEach(order => {
+      order.lineItems.forEach(lineItem => {
+        const productId = lineItem.product?.id;
+        if (productId) {
+          productIds.push(productId);
         }
       });
     });
 
-    const rankedNewCustomers = Object.entries(skuData.newCustomers)
-      .sort((a, b) => b[1] - a[1])
-      .map(([sku, quantity]) => ({ sku, quantity }));
+    // Get unique product IDs
+    const uniqueProductIds = [...new Set(productIds)];
 
-    const rankedReturningCustomers = Object.entries(skuData.returningCustomers)
-      .sort((a, b) => b[1] - a[1])
-      .map(([sku, quantity]) => ({ sku, quantity }));
+    // **Fetch products by IDs**
+    const products = await Product.find(
+      { id: { $in: uniqueProductIds } },
+      'id sku'
+    );
+    console.log(products)
+    // **Build a map of product ID to SKU**
+    const productMap = {};
+    products.forEach(product => {
+      productMap[product.id] = product.sku;
+    });
 
-    return { rankedNewCustomers, rankedReturningCustomers };
+    // Initialize an object to hold SKU data
+    const skuData = {};
+
+    // Helper functions
+    const getWeekNumber = (date) => {
+      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+      const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+      return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+    };
+
+    const formatPeriod = (date) => {
+      switch (granularity) {
+        case 'week':
+          const weekNumber = getWeekNumber(date);
+          return `${date.getFullYear()}-W${('0' + weekNumber).slice(-2)}`; // YYYY-WNN
+        case 'month':
+          return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}`; // YYYY-MM
+        case 'quarter':
+          const quarter = Math.floor(date.getMonth() / 3) + 1;
+          return `${date.getFullYear()}-Q${quarter}`; // YYYY-QN
+        case 'day':
+        default:
+          return date.toISOString().split('T')[0]; // YYYY-MM-DD
+      }
+    };
+
+    const generateAllPeriods = (startDate, endDate) => {
+      const periods = new Set();
+      let currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        periods.add(formatPeriod(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      return Array.from(periods).sort();
+    };
+
+    const allPeriods = generateAllPeriods(startDate, endDate);
+
+    // **Process each order and line item**
+    for (const order of newCustomerOrders) {
+      const date = new Date(order.createdAt);
+      const periodKey = formatPeriod(date);
+
+      for (const lineItem of order.lineItems) {
+        // Extract product ID from lineItem
+        const productId = lineItem.product?.id;
+
+        // Get SKU from productMap
+        const sku = productMap[productId];
+
+        // If SKU is not available, skip
+        if (!sku) continue;
+
+        // Initialize SKU data if not already present
+        if (!skuData[sku]) {
+          skuData[sku] = {
+            totalQuantity: 0,
+            periods: {},
+          };
+          // Initialize periods with zero counts
+          allPeriods.forEach((period) => {
+            skuData[sku].periods[period] = 0;
+          });
+        }
+
+        const quantity = lineItem.quantity || 0;
+        skuData[sku].totalQuantity += quantity;
+        skuData[sku].periods[periodKey] += quantity;
+      }
+    }
+
+    // Convert skuData to an array and sort based on totalQuantity
+    const skuArray = Object.keys(skuData).map((sku) => ({
+      sku,
+      totalQuantity: skuData[sku].totalQuantity,
+      periods: skuData[sku].periods,
+    }));
+
+    // Sort the SKUs based on totalQuantity
+    skuArray.sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+    // Get the top 3 SKUs
+    const topSKUs = skuArray.slice(0, 3);
+
+    // Return the data in the required format
+    return {
+      data: topSKUs,
+    };
   } catch (error) {
     throw new Error(error.message);
   }
 };
+
+
+
+
+ 
 
 const calculateGrossSales = async () => {
   try {
