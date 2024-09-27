@@ -17,9 +17,14 @@ import {
   fetchTimeBetweenOrders,
   fetchTimeBetweenOrdersCompare,
   fetchAveragePerOrderCompare,
-  fetchAveragePerOrder
+  fetchAveragePerOrder,
+  getRetentionCurves,
+  retentionCompare,
+  getFollowUpPurchases,
+  
   
 } from "../controllers/retentionController.js";
+import { getRFMCohunt } from "../services/retentionService.js";
 
 const router = express.Router();
 
@@ -41,6 +46,10 @@ router.get("/time-between-order", fetchTimeBetweenOrders);
 router.get("/time-between-order-compare", fetchTimeBetweenOrdersCompare);
 router.get("/average-per-order", fetchAveragePerOrder);
 router.get("/average-per-order-compare", fetchAveragePerOrderCompare);
+router.get("/rfm-cohunt", getRFMCohunt);
+router.get('/retention-curve', getRetentionCurves);
+router.get('/retention-curve-compare', retentionCompare)
+router.get('/follow-up-purchases', getFollowUpPurchases);
 
 
 export default router;

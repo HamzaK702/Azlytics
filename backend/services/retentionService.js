@@ -3,7 +3,7 @@ import Customer from "../models/BulkTables/BulkCustomer/customer.js";
 import aggregateTotalSales from "./salesService.js";
 import { calculateCOGS } from "./ordersService.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay,subDays  } from 'date-fns';
+import { startOfWeek, endOfWeek,format, startOfMonth, endOfMonth,subMonths, startOfDay, endOfDay,subDays, differenceInDays, formatDate  } from 'date-fns';
 
 export const calculateRepeatRateByCity = async () => {
   // Fetch total customers by city
@@ -920,75 +920,183 @@ export const calculateLTV = async (filter) => {
       { category: "old", price: oldCustomerLTV },
   ];
 };
+const getDateRangeByDays = (filter) => {
+  const now = new Date();
+  const startDate = subDays(now, filter);
+  const endDate = now;
+  return { startDate, endDate };
+};
 
-const calculateRepeatPurchases = async (filter) => {
-  const dateFilter = subDays(new Date(), filter);
-
+const calculateRepeatPurchases = async (startDate, endDate) => {
   const repeatPurchases = await Order.aggregate([
-    { $match: { createdAt: { $gte: dateFilter }, customer: { $ne: null } } },
-    { $group: { _id: "$customer.id", purchases: { $sum: 1 } } },
-    { $sort: { purchases: 1 } }
+    {
+      $match: {
+        processedAt: { $gte: startDate, $lte: endDate },
+        customer: { $ne: null },
+      },
+    },
+    {
+      $group: {
+        _id: "$customer.id",
+        purchases: { $sum: 1 },
+      },
+    },
+    {
+      $sort: { purchases: 1 },
+    },
   ]);
 
   return repeatPurchases;
 };
 
 export const calculateRepeatPurchaseRate = async (filter) => {
-  const repeatPurchases = await calculateRepeatPurchases(filter);
-
-  const purchaseRanges = [1, 2, 3, 4, 5, 6]; // Define the range for purchase counts
+  const { startDate, endDate } = getDateRangeByDays(filter);
+  
+  const repeatPurchases = await calculateRepeatPurchases(startDate, endDate);
+  
+  const totalCustomers = repeatPurchases.length;
+  
+  const purchaseRanges = [1, 2, 3, 4, 5, 6]; 
   const result = [];
 
-  purchaseRanges.forEach((range, index) => {
+  purchaseRanges.forEach((range) => {
     const currentRangePurchases = repeatPurchases.filter((p) => p.purchases === range).length;
     const nextRangePurchases = repeatPurchases.filter((p) => p.purchases === range + 1).length;
 
-    const rate = nextRangePurchases > 0 ? (nextRangePurchases / currentRangePurchases) * 100 : 0;
+    const nonPurchases = currentRangePurchases - nextRangePurchases;
+
+    const purchaseConversion = currentRangePurchases > 0 ? ((nextRangePurchases / currentRangePurchases) * 100).toFixed(2) + "%" : "0%";
+    const nonPurchaseDropOff = currentRangePurchases > 0 ? ((nonPurchases / currentRangePurchases) * 100).toFixed(2) + "%" : "0%";
+
+    let label;
+    switch (range) {
+      case 1:
+        label = "1st to 2nd";
+        break;
+      case 2:
+        label = "2nd to 3rd";
+        break;
+      case 3:
+        label = "3rd to 4th";
+        break;
+      case 4:
+        label = "4th to 5th";
+        break;
+      case 5:
+        label = "5th to 6th";
+        break;
+      case 6:
+        label = "6th to 7th";
+        break;
+      default:
+        label = `${range}th to ${range + 1}th`;
+    }
 
     result.push({
-      label: `${range}th to ${range + 1}th`,
+      label: label,
       purchases: currentRangePurchases,
-      rates: rate,
+      nonPurchases: nonPurchases,
+      purchaseConversion: purchaseConversion,
+      nonPurchaseDropOff: nonPurchaseDropOff,
     });
   });
 
   return result;
 };
+const getCurrentAndPreviousDateRanges = (filter) => {
+  const now = new Date();
+  const startDateCurrent = subDays(now, filter);
+  const endDateCurrent = now;
+
+  const startDatePrevious = subDays(startDateCurrent, filter);
+  const endDatePrevious = subDays(startDateCurrent, 1); 
+
+  return {
+    current: { startDate: startDateCurrent, endDate: endDateCurrent },
+    previous: { startDate: startDatePrevious, endDate: endDatePrevious },
+  };
+};
 
 export const calculateRepeatPurchaseRateCompare = async (filter) => {
-  const currentPeriodPurchases = await calculateRepeatPurchases(filter);
-  const previousPeriodPurchases = await calculateRepeatPurchases(filter * 2); 
+  const { current, previous } = getCurrentAndPreviousDateRanges(filter);
+  console.log(`Calculating Repeat Purchase Rate Compare:
+    Current Period: ${current.startDate} to ${current.endDate}
+    Previous Period: ${previous.startDate} to ${previous.endDate}`);
+
+  const currentPeriodPurchases = await calculateRepeatPurchases(current.startDate, current.endDate);
+  const previousPeriodPurchases = await calculateRepeatPurchases(previous.startDate, previous.endDate);
+
+  console.log(`Current Period Purchases: ${currentPeriodPurchases.length}`);
+  console.log(`Previous Period Purchases: ${previousPeriodPurchases.length}`);
 
   const purchaseRanges = [1, 2, 3, 4, 5, 6];
   const comparisonData = [];
 
-  purchaseRanges.forEach((range, index) => {
-    const currentPeriodRangePurchases = currentPeriodPurchases.filter((p) => p.purchases === range).length;
-    const previousPeriodRangePurchases = previousPeriodPurchases.filter((p) => p.purchases === range).length;
+  purchaseRanges.forEach((range) => {
+    const currentRangePurchases = currentPeriodPurchases.filter((p) => p.purchases === range).length;
+    const currentNextRangePurchases = currentPeriodPurchases.filter((p) => p.purchases === range + 1).length;
+    const currentNonPurchases = currentRangePurchases - currentNextRangePurchases;
 
-    const currentRate = currentPeriodRangePurchases > 0 ? (currentPeriodRangePurchases / previousPeriodRangePurchases) * 100 : 0;
-    const previousRate = previousPeriodRangePurchases > 0 ? (previousPeriodRangePurchases / currentPeriodRangePurchases) * 100 : 0;
+    const previousRangePurchases = previousPeriodPurchases.filter((p) => p.purchases === range).length;
+    const previousNextRangePurchases = previousPeriodPurchases.filter((p) => p.purchases === range + 1).length;
+    const previousNonPurchases = previousRangePurchases - previousNextRangePurchases;
+
+    const purchaseConversion = currentRangePurchases > 0 ? ((currentNextRangePurchases / currentRangePurchases) * 100).toFixed(2) + "%" : "0%";
+    const nonPurchaseDropOff = currentRangePurchases > 0 ? ((currentNonPurchases / currentRangePurchases) * 100).toFixed(2) + "%" : "0%";
+
+    const previousPurchaseConversion = previousRangePurchases > 0 ? ((previousNextRangePurchases / previousRangePurchases) * 100).toFixed(2) + "%" : "0%";
+    const previousNonPurchaseDropOff = previousRangePurchases > 0 ? ((previousNonPurchases / previousRangePurchases) * 100).toFixed(2) + "%" : "0%";
+
+    let label;
+    switch (range) {
+      case 1:
+        label = "1st to 2nd";
+        break;
+      case 2:
+        label = "2nd to 3rd";
+        break;
+      case 3:
+        label = "3rd to 4th";
+        break;
+      case 4:
+        label = "4th to 5th";
+        break;
+      case 5:
+        label = "5th to 6th";
+        break;
+      case 6:
+        label = "6th to 7th";
+        break;
+      default:
+        label = `${range}th to ${range + 1}th`;
+    }
 
     comparisonData.push({
-      label: `${range}th to ${range + 1}th`,
-      purchases: currentPeriodRangePurchases,
-      rates: currentRate,
-      previousPurchases: previousPeriodRangePurchases,
-      previousRates: previousRate
+      label: label,
+      purchases: currentRangePurchases,
+      nonPurchases: currentNonPurchases,
+      previousPurchases: previousRangePurchases,
+      previousNonPurchases: previousNonPurchases,
+      purchaseConversion: purchaseConversion,
+      previousPurchaseConversion: previousPurchaseConversion,
+      nonPurchaseDropOff: nonPurchaseDropOff,
+      previousNonPurchaseDropOff: previousNonPurchaseDropOff,
     });
   });
 
+  console.log("Comparison Data:", comparisonData);
+
   return comparisonData;
 };
+
 
 export const calculateTimeBetweenOrders = async (filter) => {
   const dateFilter = subDays(new Date(), filter);
   console.log(`Date filter: Orders since ${dateFilter}`);
 
-  // Step 1: Get all orders within the filtered date range
   const orders = await Order.aggregate([
     { $match: { createdAt: { $gte: dateFilter } } },
-    { $sort: { createdAt: 1 } }, // Sort by date to calculate differences
+    { $sort: { createdAt: 1 } }, 
     { $group: { _id: "$customer.id", orders: { $push: "$createdAt" } } },
   ]);
 
@@ -997,7 +1105,7 @@ export const calculateTimeBetweenOrders = async (filter) => {
   orders.forEach((order) => {
     if (order.orders.length > 1) {
       for (let i = 1; i < order.orders.length; i++) {
-        const timeDifference = (order.orders[i] - order.orders[i - 1]) / (1000 * 60 * 60 * 24); // in days
+        const timeDifference = (order.orders[i] - order.orders[i - 1]) / (1000 * 60 * 60 * 24); 
         timeIntervals.push(timeDifference);
       }
     }
@@ -1017,7 +1125,7 @@ export const calculateTimeBetweenOrders = async (filter) => {
   const timeStats = [];
   
   for (let i = 1; i < 7; i++) {
-    const intervalsForStage = timeIntervals.filter((_, index) => index % i === 0); // Group by stages
+    const intervalsForStage = timeIntervals.filter((_, index) => index % i === 0); 
     if (intervalsForStage.length > 0) {
       timeStats.push({
         label: `${i}st to ${i + 1}nd`,
@@ -1099,6 +1207,903 @@ const getOrdinalSuffix = (i) => {
   return "th";
 };
 
+export const getRFMCohunt = async (req, res) => {
+  try {
+    const filter = req.query.filter || "R"; // Default filter is Recency
+    const now = new Date();
+
+    if (filter === "R") {
+      // Filter based on Recency
+      const customers = await Customer.aggregate([
+        {
+          $lookup: {
+            from: "orders",
+            localField: "id",
+            foreignField: "customer.id",
+            as: "orders",
+          },
+        },
+        {
+          $addFields: {
+            lastOrderDate: { $max: "$orders.createdAt" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            customerId: "$id",
+            lastOrderDate: 1,
+          },
+        },
+      ]);
+
+      const cohorts = [
+        { name: "1%", customerName: "Champions", days: 0, size: 0 },
+        { name: "15%", customerName: "Loyal customers", days: 5, size: 0 },
+        { name: "24%", customerName: "Potential Loyalists", days: 10, size: 0 },
+        { name: "15%", customerName: "New Customers", days: 15, size: 0 },
+        { name: "7%", customerName: "Promising", days: 20, size: 0 },
+        { name: "5%", customerName: "Need Attention", days: 25, size: 0 },
+        { name: "10%", customerName: "About to Sleep", days: 30, size: 0 },
+        { name: "16%", customerName: "Can't Lose Them", days: 35, size: 0 },
+        { name: "3%", customerName: "At Risk", days: 40, size: 0 },
+        { name: "4%", customerName: "Hibernating", days: 45, size: 0 },
+      ];
+
+      customers.forEach((customer) => {
+        const daysSinceLastOrder = Math.floor((now - new Date(customer.lastOrderDate)) / (1000 * 60 * 60 * 24));
+
+        for (const cohort of cohorts) {
+          if (daysSinceLastOrder >= cohort.days) {
+            cohort.size += 1;
+            break;
+          }
+        }
+      });
+
+      res.status(200).json({
+        status: "success",
+        data: cohorts,
+      });
+
+    } else if (filter === "F") {
+      // Filter based on Frequency (Order count)
+      const customers = await Customer.aggregate([
+        {
+          $lookup: {
+            from: "orders",
+            localField: "id",
+            foreignField: "customer.id",
+            as: "orders",
+          },
+        },
+        {
+          $addFields: {
+            orderCount: { $size: "$orders" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            customerId: "$id",
+            orderCount: 1,
+          },
+        },
+      ]);
+
+      const frequencyCohorts = [
+        { name: "1%", customerName: "Champions", size: 0, orders: 0 },
+        { name: "15%", customerName: "Loyal customers", size: 0, orders: 0 },
+        { name: "24%", customerName: "Potential Loyalists", size: 0, orders: 0 },
+        { name: "15%", customerName: "New Customers", size: 0, orders: 0 },
+        { name: "7%", customerName: "Promising", size: 0, orders: 0 },
+        { name: "5%", customerName: "Need Attention", size: 0, orders: 0 },
+        { name: "10%", customerName: "About to Sleep", size: 0, orders: 0 },
+        { name: "16%", customerName: "Can't Lose Them", size: 0, orders: 0 },
+        { name: "3%", customerName: "At Risk", size: 0, orders: 0 },
+        { name: "4%", customerName: "Hibernating", size: 0, orders: 0 },
+      ];
+
+      customers.forEach((customer) => {
+        const orderCount = customer.orderCount;
+
+        for (const cohort of frequencyCohorts) {
+          if (orderCount >= cohort.orders) {
+            cohort.size += 1;
+            cohort.orders += orderCount;
+            break;
+          }
+        }
+      });
+
+      res.status(200).json({
+        status: "success",
+        data: frequencyCohorts,
+      });
+
+    } else if (filter === "M") {
+      // Filter based on Monetary (Total spending)
+      const customers = await Customer.aggregate([
+        {
+          $lookup: {
+            from: "orders",
+            localField: "id",
+            foreignField: "customer.id",
+            as: "orders",
+          },
+        },
+        {
+          $addFields: {
+            totalSpent: { $sum: "$orders.totalPrice" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            customerId: "$id",
+            totalSpent: 1,
+          },
+        },
+      ]);
+
+      const monetaryCohorts = [
+        { name: "1%", customerName: "Champions", size: 0, ltr: 0 },
+        { name: "15%", customerName: "Loyal customers", size: 0, ltr: 0 },
+        { name: "24%", customerName: "Potential Loyalists", size: 0, ltr: 0 },
+        { name: "15%", customerName: "New Customers", size: 0, ltr: 0 },
+        { name: "7%", customerName: "Promising", size: 0, ltr: 0 },
+        { name: "5%", customerName: "Need Attention", size: 0, ltr: 0 },
+        { name: "10%", customerName: "About to Sleep", size: 0, ltr: 0 },
+        { name: "16%", customerName: "Can't Lose Them", size: 0, ltr: 0 },
+        { name: "3%", customerName: "At Risk", size: 0, ltr: 0 },
+        { name: "4%", customerName: "Hibernating", size: 0, ltr: 0 },
+      ];
+
+      customers.forEach((customer) => {
+        const totalSpent = customer.totalSpent;
+
+        for (const cohort of monetaryCohorts) {
+          if (totalSpent >= cohort.ltr) {
+            cohort.size += 1;
+            cohort.ltr += totalSpent; // Increment LTR (total spent)
+            break;
+          }
+        }
+      });
+
+      res.status(200).json({
+        status: "success",
+        data: monetaryCohorts,
+      });
+    } else {
+      res.status(400).json({ status: "error", message: "Invalid filter parameter" });
+    }
+
+  } catch (error) {
+    console.error("Error in RFM cohort analysis:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
 
 
-  
+const getDateRange = (filter, customStartDate, customEndDate) => {
+  const now = new Date();
+  let startDate;
+  let endDate;
+
+  switch (filter) {
+    case "three_months":
+      startDate = subMonths(now, 2);
+      startDate.setDate(1);
+      endDate = now;
+      break;
+    case "yesterday":
+      startDate = subDays(now, 1);
+      endDate = startDate;
+      break;
+    case "one_week":
+      endDate = subDays(now, 1);
+      startDate = subDays(endDate, 7);
+      break;
+    case "one_month":
+      endDate = subDays(now, 1);
+      startDate = subMonths(endDate, 1);
+      break;
+    case "six_months":
+      startDate = subMonths(now, 6);
+      endDate = now;
+      break;
+    case "twelve_months":
+      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      endDate = new Date();
+      break;
+    case "custom_date_range":
+      if (!customStartDate || !customEndDate) {
+        throw new Error("Custom start and end dates are required for custom_date_range filter");
+      }
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+      break;
+    default:
+      throw new Error("Invalid filter specified");
+  }
+
+  return { startDate, endDate };
+};
+
+
+export const getRetentionCurveData = async ({ filter, breakdown, format, customStartDate, customEndDate }) => {
+  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+
+  let groupBy;
+  let incrementFunction;
+
+  switch (format) {
+    case "day":
+      groupBy = {
+        $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+      };
+      incrementFunction = d => {
+        const formattedDate = formatDate(d, 'yyyy-MM-dd');
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "week":
+      groupBy = {
+        $dateToString: { format: "%Y-W%U", date: "$createdAt" }
+      };
+      incrementFunction = d => {
+        const weekNumber = getWeekNumber(d);
+        const formattedDate = `${d.getFullYear()}-W${String(weekNumber).padStart(2, "0")}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "month":
+      groupBy = {
+        $dateToString: { format: "%Y-%m", date: "$createdAt" }
+      };
+      incrementFunction = d => {
+        const formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "quarter":
+      groupBy = {
+        $concat: [
+          { $toString: { $year: "$createdAt" } },
+          "-Q",
+          { $ceil: { $divide: [{ $month: "$createdAt" }, 3] } }
+        ]
+      };
+      incrementFunction = d => {
+        const quarter = Math.ceil((d.getMonth() + 1) / 3);
+        const formattedDate = `${d.getFullYear()}-Q${quarter}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    default:
+      throw new Error("Invalid format specified");
+  }
+
+  const dateRange = [];
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    dateRange.push(incrementFunction(new Date(currentDate)));
+    switch (format) {
+      case "day":
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case "week":
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case "month":
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case "quarter":
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
+    }
+  }
+
+  let breakdownGroup;
+  switch (breakdown) {
+    case "productTitle":
+      breakdownGroup = "$lineItems.title";
+      break;
+    case "city":
+      breakdownGroup = {
+        $ifNull: ["$shippingAddress.city", "Other"]
+      };
+      break;
+    case "region":
+      breakdownGroup = {
+        $ifNull: ["$shippingAddress.province", "Other"] 
+      };
+      break;
+    case "aov":
+      breakdownGroup = {
+        $switch: {
+          branches: [
+            {
+              case: { $lt: [{ $toDouble: "$totalPrice" }, 100] },
+              then: "AOV Segment 1"
+            },
+            {
+              case: { $and: [
+                { $gte: [{ $toDouble: "$totalPrice" }, 100] },
+                { $lt: [{ $toDouble: "$totalPrice" }, 200] }
+              ] },
+              then: "AOV Segment 2"
+            },
+            {
+              case: { $gte: [{ $toDouble: "$totalPrice" }, 200] },
+              then: "AOV Segment 3"
+            }
+          ],
+          default: "Other"
+        }
+      };
+      break;
+    default:
+      throw new Error("Invalid breakdown specified");
+  }
+
+  const pipeline = [
+    {
+      $match: {
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      },
+    },
+    {
+      $unwind: "$lineItems",
+    },
+    {
+      $group: {
+        _id: {
+          breakdown: breakdownGroup,
+          date: groupBy,
+        },
+        quantitySold: { $sum: "$lineItems.quantity" },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.breakdown",
+        dates: {
+          $push: {
+            date: "$_id.date",
+            quantitySold: "$quantitySold",
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        breakdown: "$_id",
+        dates: 1,
+      },
+    },
+  ];
+
+  const aggregationResults = await Order.aggregate(pipeline);
+
+  let formattedResults = [];
+
+  if (breakdown === "productTitle") {
+    const allProducts = await Product.find({}, 'title').lean();
+    const productTitles = allProducts.map(product => product.title);
+
+    formattedResults = dateRange.map(dateObj => {
+      const breakdownData = {};
+      productTitles.forEach(title => {
+        breakdownData[title] = 0;
+      });
+
+      aggregationResults.forEach(item => {
+        const productTitle = item.breakdown;
+        if (productTitles.includes(productTitle)) {
+          const sale = item.dates.find(d => d.date === dateObj.date);
+          if (sale) {
+            breakdownData[productTitle] = sale.quantitySold;
+          }
+        }
+      });
+
+      return {
+        date: dateObj.date,
+        breakdownData,
+      };
+    });
+  } else {
+    let uniqueCategories = [];
+    if (breakdown === "region") {
+      uniqueCategories = await Order.distinct('shippingAddress.province', {
+        createdAt: { $gte: startDate, $lte: endDate }
+      });
+    } else if (breakdown === "city") {
+      uniqueCategories = await Order.distinct('shippingAddress.city', {
+        createdAt: { $gte: startDate, $lte: endDate }
+      });
+    } else if (breakdown === "aov") {
+      uniqueCategories = ["AOV Segment 1", "AOV Segment 2", "AOV Segment 3", "Other"];
+    }
+
+    if (breakdown !== "aov") {
+      uniqueCategories = uniqueCategories.filter(cat => cat); 
+      uniqueCategories.push("Other");
+    }
+
+    formattedResults = dateRange.map(dateObj => {
+      const breakdownData = {};
+      uniqueCategories.forEach(category => {
+        breakdownData[category] = 0;
+      });
+
+      aggregationResults.forEach(item => {
+        const category = item.breakdown;
+        if (uniqueCategories.includes(category)) {
+          const sale = item.dates.find(d => d.date === dateObj.date);
+          if (sale) {
+            breakdownData[category] += sale.quantitySold;
+          }
+        }
+      });
+
+      return {
+        date: dateObj.date,
+        breakdownData,
+      };
+    });
+  }
+
+  return formattedResults;
+};
+
+
+const getWeekNumber = (d) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return weekNo;
+};
+
+
+export const getRetentionCurveCompareData = async ({ filter, breakdown, format, customStartDate, customEndDate }) => {
+  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+
+  let groupBy;
+  let incrementFunction;
+
+  switch (format) {
+    case "day":
+      groupBy = {
+        $dateToString: { format: "%Y-%m-%d", date: "$processedAt" }
+      };
+      incrementFunction = d => {
+        const formattedDate = formatDate(d, 'yyyy-MM-dd');
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "week":
+      groupBy = {
+        $dateToString: { format: "%Y-W%U", date: "$processedAt" }
+      };
+      incrementFunction = d => {
+        const weekNumber = getWeekNumber(d);
+        const formattedDate = `${d.getFullYear()}-W${String(weekNumber).padStart(2, "0")}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "month":
+      groupBy = {
+        $dateToString: { format: "%Y-%m", date: "$processedAt" }
+      };
+      incrementFunction = d => {
+        const formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    case "quarter":
+      groupBy = {
+        $concat: [
+          { $toString: { $year: "$processedAt" } },
+          "-Q",
+          { $ceil: { $divide: [{ $month: "$processedAt" }, 3] } }
+        ]
+      };
+      incrementFunction = d => {
+        const quarter = Math.ceil((d.getMonth() + 1) / 3);
+        const formattedDate = `${d.getFullYear()}-Q${quarter}`;
+        return { date: formattedDate, quantitySold: 0 };
+      };
+      break;
+    default:
+      throw new Error("Invalid format specified");
+  }
+
+  const dateRange = [];
+  let currentDate = new Date(startDate);
+
+  while (currentDate <= endDate) {
+    dateRange.push(incrementFunction(new Date(currentDate)));
+    switch (format) {
+      case "day":
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case "week":
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case "month":
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case "quarter":
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
+    }
+  }
+
+  let breakdownGroup;
+  switch (breakdown) {
+    case "productTitle":
+      breakdownGroup = "$lineItems.title";
+      break;
+    case "city":
+      breakdownGroup = {
+        $ifNull: ["$lineItems.address.city", "Other"] 
+      };
+      break;
+    case "region":
+      breakdownGroup = {
+        $ifNull: ["$lineItems.address.province", "Other"]
+      };
+      break;
+    case "aov":
+      breakdownGroup = {
+        $switch: {
+          branches: [
+            {
+              case: { $lt: [{ $toDouble: "$totalPrice" }, 100] },
+              then: "AOV Segment 1"
+            },
+            {
+              case: { $and: [
+                { $gte: [{ $toDouble: "$totalPrice" }, 100] },
+                { $lt: [{ $toDouble: "$totalPrice" }, 200] }
+              ] },
+              then: "AOV Segment 2"
+            },
+            {
+              case: { $gte: [{ $toDouble: "$totalPrice" }, 200] },
+              then: "AOV Segment 3"
+            }
+          ],
+          default: "Other"
+        }
+      };
+      break;
+    default:
+      throw new Error("Invalid breakdown specified");
+  }
+
+  const pipeline = [
+    {
+      $match: {
+        processedAt: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          breakdown: breakdownGroup,
+          date: groupBy,
+        },
+        totalPriceSum: { $sum: { $toDouble: "$totalPrice" } }, 
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.breakdown",
+        dates: {
+          $push: {
+            date: "$_id.date",
+            totalPriceSum: "$totalPriceSum",
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        breakdown: "$_id",
+        dates: 1,
+      },
+    },
+  ];
+
+  const aggregationResults = await Order.aggregate(pipeline);
+
+  let formattedResults = [];
+
+  if (breakdown === "productTitle") {
+    const allProducts = await Product.find({}, 'title').lean();
+    const productTitles = allProducts.map(product => product.title);
+
+    formattedResults = dateRange.map(dateObj => {
+      const breakdownData = {};
+      productTitles.forEach(title => {
+        breakdownData[title] = 0;
+      });
+
+      aggregationResults.forEach(item => {
+        const productTitle = item.breakdown;
+        if (productTitles.includes(productTitle)) {
+          const sale = item.dates.find(d => d.date === dateObj.date);
+          if (sale) {
+            breakdownData[productTitle] = sale.totalPriceSum;
+          }
+        }
+      });
+
+      return {
+        date: dateObj.date,
+        breakdownData,
+      };
+    });
+  } else {
+    let uniqueCategories = [];
+    if (breakdown === "region") {
+      uniqueCategories = await Order.distinct('lineItems.address.province', {
+        processedAt: { $gte: startDate, $lte: endDate }
+      });
+    } else if (breakdown === "city") {
+      uniqueCategories = await Order.distinct('lineItems.address.city', {
+        processedAt: { $gte: startDate, $lte: endDate }
+      });
+    } else if (breakdown === "aov") {
+      uniqueCategories = ["AOV Segment 1", "AOV Segment 2", "AOV Segment 3", "Other"];
+    }
+
+    if (breakdown !== "aov") {
+      uniqueCategories = uniqueCategories.filter(cat => cat); 
+      uniqueCategories.push("Other");
+    }
+
+    formattedResults = dateRange.map(dateObj => {
+      const breakdownData = {};
+      uniqueCategories.forEach(category => {
+        breakdownData[category] = 0;
+      });
+
+      aggregationResults.forEach(item => {
+        const category = item.breakdown;
+        if (uniqueCategories.includes(category)) {
+          const sale = item.dates.find(d => d.date === dateObj.date);
+          if (sale) {
+            breakdownData[category] += sale.totalPriceSum;
+          }
+        }
+      });
+
+      return {
+        date: dateObj.date,
+        breakdownData,
+      };
+    });
+  }
+
+  return formattedResults;
+};
+
+const mapTimelineFilterToDateRangeFilter = (timelineFilter) => {
+  const mapping = {
+    "lastMonth": "one_month",
+    "3months": "three_months",
+    "6months": "six_months"
+  };
+
+  return mapping[timelineFilter];
+};
+
+
+export const calculateFollowUpPurchases = async (filter, order, timelineFilter) => {
+  try {
+    const dateRangeFilter = mapTimelineFilterToDateRangeFilter(timelineFilter);
+    if (!dateRangeFilter) {
+      throw new Error("Invalid timelineFilter provided");
+    }
+
+    const { startDate, endDate } = getDateRange(dateRangeFilter, null, null); 
+
+    console.log(`Calculating follow-up purchases:
+      Filter: ${filter}
+      Order: ${order}
+      TimelineFilter: ${timelineFilter}
+      Date Range: ${startDate} to ${endDate}`);
+
+    let orderNumber;
+    switch (order) {
+      case 'second_order':
+        orderNumber = 2;
+        break;
+      case 'third_order':
+        orderNumber = 3;
+        break;
+      case 'fourth_order':
+        orderNumber = 4;
+        break;
+      default:
+        throw new Error("Invalid order specified");
+    }
+
+    const initialMatch = {
+      processedAt: { $gte: startDate, $lte: endDate },
+      "customer.id": { $ne: null },
+    };
+
+    const matchingOrdersCount = await Order.countDocuments(initialMatch);
+    console.log(`Number of matching orders: ${matchingOrdersCount}`);
+
+    if (matchingOrdersCount === 0) {
+      console.log("There are no orders matching the specified criteria.");
+      return [];
+    }
+
+    const groupedCustomers = await Order.aggregate([
+      { $match: initialMatch },
+      { $group: { _id: "$customer.id", purchases: { $sum: 1 }, orders: { $push: "$$ROOT" } } },
+      { $match: { purchases: orderNumber } }
+    ]);
+
+    console.log(`Number of customers with ${orderNumber} orders: ${groupedCustomers.length}`);
+
+    if (groupedCustomers.length === 0) {
+      console.log(`No customers have ${orderNumber} orders in the specified date range.`);
+      return [];
+    }
+
+    const customerIds = groupedCustomers.map(customer => customer._id);
+    console.log("Customer IDs with required order count:", customerIds);
+
+    const nthOrders = await Order.aggregate([
+      { $match: initialMatch },
+      { $sort: { "customer.id": 1, "processedAt": 1 } },
+      {
+        $group: {
+          _id: "$customer.id",
+          orders: { $push: "$$ROOT" }
+        }
+      },
+      {
+        $project: {
+          nthOrder: { $arrayElemAt: ["$orders", orderNumber - 1] }
+        }
+      },
+      {
+        $match: {
+          "nthOrder.processedAt": { $gte: startDate, $lte: endDate }
+        }
+      }
+    ]);
+
+    console.log(`Number of nthOrders within date range: ${nthOrders.length}`);
+
+    if (nthOrders.length === 0) {
+      console.log("No nthOrders match the specified date range.");
+      return [];
+    }
+
+    let pipeline = [
+      { $match: { _id: { $in: nthOrders.map(order => order._id) } } },
+      { $unwind: "$nthOrder.lineItems" },
+    ];
+
+    if (filter === 'products') {
+      pipeline = [
+        { $match: { _id: { $in: nthOrders.map(order => order._id) } } },
+        { $unwind: "$nthOrder.lineItems" },
+        {
+          $group: {
+            _id: "$nthOrder.lineItems.product.id",
+            purchaseFrequency: { $sum: 1 },
+            skuImage: { $first: "$nthOrder.lineItems.product.variants.image.transformedSrc" },
+          },
+        },
+        { $sort: { purchaseFrequency: -1 } },
+        {
+          $project: {
+            _id: 0,
+            sku: "$_id",
+            purchaseFrequency: 1,
+            skuImage: 1
+          }
+        },
+        { $limit: 12 }
+      ];
+    } else if (filter === 'variants') {
+      pipeline = [
+        { $match: { _id: { $in: nthOrders.map(order => order._id) } } },
+        { $unwind: "$nthOrder.lineItems" },
+        { $unwind: "$nthOrder.lineItems.product.variants" },
+        {
+          $group: {
+            _id: "$nthOrder.lineItems.product.variants.sku",
+            purchaseFrequency: { $sum: 1 },
+            skuImage: { $first: "$nthOrder.lineItems.product.variants.image.transformedSrc" },
+          },
+        },
+        { $sort: { purchaseFrequency: -1 } },
+        {
+          $project: {
+            _id: 0,
+            sku: "$_id",
+            purchaseFrequency: 1,
+            skuImage: 1
+          }
+        },
+        { $limit: 12 }
+      ];
+    } else if (filter === 'categories') {
+      pipeline = [
+        { $match: { _id: { $in: nthOrders.map(order => order._id) } } },
+        { $unwind: "$nthOrder.lineItems" },
+        {
+          $lookup: {
+            from: "products", 
+            localField: "nthOrder.lineItems.product.id",
+            foreignField: "id",
+            as: "productDetails"
+          }
+        },
+        { $unwind: "$productDetails" },
+        {
+          $group: {
+            _id: "$productDetails.productType",
+            purchaseFrequency: { $sum: 1 },
+          },
+        },
+        { $sort: { purchaseFrequency: -1 } },
+        {
+          $project: {
+            _id: 0,
+            category: "$_id",
+            purchaseFrequency: 1
+          }
+        },
+        { $limit: 12 }
+      ];
+    } else {
+      throw new Error("Invalid filter specified");
+    }
+
+    console.log(`Executing Aggregation Pipeline for filter=${filter}:`, JSON.stringify(pipeline, null, 2));
+
+    const aggregationResults = await Order.aggregate(pipeline);
+
+    console.log(`Aggregation Results for filter=${filter}:`, aggregationResults);
+
+    if (filter === 'categories') {
+      return aggregationResults.map(item => ({
+        category: item.category || "Unknown",
+        purchaseFrequency: item.purchaseFrequency || 0
+      }));
+    } else {
+      return aggregationResults.map(item => ({
+        sku: item.sku || "Unknown",
+        purchaseFrequency: item.purchaseFrequency || 0,
+        skuImage: item.skuImage || null
+      }));
+    }
+  } catch (error) {
+    console.error("Error in calculateFollowUpPurchases:", error);
+    throw error;
+  }
+};

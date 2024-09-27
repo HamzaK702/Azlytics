@@ -14,8 +14,8 @@ export const getInventory = async (
     switch (filter) {
       case "three_months":
         startDate = new Date(now);
-        startDate.setMonth(now.getMonth() - 2); 
-        startDate.setDate(1); 
+        startDate.setMonth(now.getMonth() - 2);
+        startDate.setDate(1);
         endDate = now;
         break;
       case "yesterday":
@@ -72,7 +72,7 @@ export const getInventory = async (
     let dateStep;
     const dateRange = [];
     if (groupBy === "week") {
-      dateFormat = "%Y-W"; 
+      dateFormat = "%Y-W";
       for (
         let d = new Date(startDate);
         d <= endDate;
@@ -85,7 +85,7 @@ export const getInventory = async (
         dateRange.push({ date: formattedDate, quantitySold: 0 });
       }
     } else if (groupBy === "month") {
-      dateFormat = "%Y-%m"; 
+      dateFormat = "%Y-%m";
       for (
         let d = new Date(startDate);
         d <= endDate;
@@ -153,7 +153,7 @@ export const getInventory = async (
     const results = await Order.aggregate(pipeline);
 
     const finalResults = results.map((product) => {
-      const dateValues = [...dateRange]; 
+      const dateValues = [...dateRange];
 
       product.dates.forEach((d) => {
         const index = dateValues.findIndex((item) => item.date === d.date);
@@ -207,7 +207,7 @@ export const getInventoryTableData = async () => {
       },
       {
         $lookup: {
-          from: "products", 
+          from: "products",
           localField: "_id.productId",
           foreignField: "id",
           as: "productInfo",
