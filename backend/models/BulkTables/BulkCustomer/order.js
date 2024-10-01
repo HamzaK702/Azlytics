@@ -9,6 +9,7 @@ const orderSchema = new Schema({
   totalPrice: String,
   currencyCode: String,
   processedAt: Date,
+  totalCost: Number,
   lineItems: [lineItemSchema], 
 });
 
