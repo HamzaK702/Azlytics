@@ -5,10 +5,8 @@ import Product from '../models/BulkTables/BulkProduct/product.js';
 import OverheadCost from '../models/overheadCostModel.js';
 import MetaAdInsights from '../models/metaAdInsightModel.js';
 import moment from 'moment';
-
-// Helper function to get date range
-import { getDateRange } from './dateHelpers.js'; // Adjust the import path accordingly
-
+import { subMonths, format, addMonths,subDays } from 'date-fns';
+import { getDateRange } from './dateHelpers.js'; 
 const calculateGrossProfitData = async (filter) => {
   try {
     // Get the date range based on the filter
@@ -334,6 +332,564 @@ const calculateTotalTaxes = async (startDate, endDate) => {
     throw error;
   }
 };
+
+export const calculatePerformanceMetrics = async (timeFormat) => {
+  const now = new Date();
+  const startDate = subMonths(now, 12);
+
+  const ordersAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: now },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        revenue: { $sum: { $toDouble: "$totalPrice" } },
+        totalCost: { $sum: { $toDouble: "$totalCost" } },
+        orderCount: { $sum: 1 },
+        unitsSold: { $sum: { $sum: "$lineItems.quantity" } },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const adsAggregation = await MetaAdInsights.aggregate([
+    {
+      $match: {
+        date: {
+          $gte: format(startDate, 'yyyy-MM'),
+          $lte: format(now, 'yyyy-MM'),
+        },
+      },
+    },
+    { $unwind: "$insights" },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        totalAdsSpend: { $sum: "$insights.spend" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const overheadAggregation = await OverheadCost.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: now },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: "$year",
+          month: "$month",
+        },
+        overheadCost: { $sum: "$overheadCost" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const performanceMap = {};
+
+  ordersAggregation.forEach((order) => {
+    const { year, month } = order._id;
+    const key = `${year}-${month}`;
+    performanceMap[key] = {
+      year,
+      month,
+      revenue: order.revenue,
+      totalCost: order.totalCost,
+      orderCount: order.orderCount,
+      unitsSold: order.unitsSold,
+      grossProfit: order.revenue - order.totalCost,
+    };
+  });
+
+  adsAggregation.forEach((ad) => {
+    const { year, month } = ad._id;
+    const key = `${year}-${month}`;
+    if (performanceMap[key]) {
+      performanceMap[key].totalAdsSpend = ad.totalAdsSpend;
+    } else {
+      performanceMap[key] = {
+        year,
+        month,
+        totalAdsSpend: ad.totalAdsSpend,
+      };
+    }
+  });
+
+  overheadAggregation.forEach((overhead) => {
+    const { year, month } = overhead._id;
+    const key = `${year}-${month}`;
+    if (performanceMap[key]) {
+      performanceMap[key].overheadCost = overhead.overheadCost;
+    } else {
+      performanceMap[key] = {
+        year,
+        month,
+        overheadCost: overhead.overheadCost,
+      };
+    }
+  });
+
+  const performanceData = Object.keys(performanceMap).map((key) => {
+    const data = performanceMap[key];
+    
+    const date = timeFormat === 'month' 
+      ? format(new Date(data.year, data.month - 1), 'MMM yyyy') 
+      : format(new Date(data.year, 0), 'yyyy'); 
+
+    const grossProfit = data.grossProfit || 0;
+    const totalAdsSpend = data.totalAdsSpend || 0;
+    const overheadCost = data.overheadCost || 0;
+    const netProfit = grossProfit - totalAdsSpend - overheadCost;
+    const netProfitMargin = data.revenue ? (netProfit / data.revenue) * 100 : 0;
+    const grossProfitMargin = data.revenue ? (grossProfit / data.revenue) * 100 : 0;
+
+    return {
+      date,
+      grossProfit: parseFloat(grossProfit.toFixed(2)),
+      netMargin: parseFloat((netProfit + overheadCost).toFixed(2)), 
+      previousProfit: 0, 
+      revenue: parseFloat(data.revenue.toFixed(2)),
+      totalAdsSpend: parseFloat(totalAdsSpend.toFixed(2)),
+      netProfit: parseFloat(netProfit.toFixed(2)),
+      netProfitMargin: parseFloat(netProfitMargin.toFixed(2)),
+      orderCount: data.orderCount || 0,
+      totalCost: parseFloat((data.totalCost + overheadCost).toFixed(2)),
+      grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)),
+      unitsSold: data.unitsSold || 0,
+    };
+  });
+
+  performanceData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  for (let i = 0; i < performanceData.length; i++) {
+    if (i === 0) {
+      performanceData[i].previousProfit = 0;
+    } else {
+      performanceData[i].previousProfit = performanceData[i - 1].grossProfit;
+    }
+  }
+
+  return performanceData;
+};
+
+const getDateRangeTable = (filter, customStartDate, customEndDate) => {
+  const now = new Date();
+  let startDate;
+  let endDate;
+
+  switch (filter) {
+    case "three_months":
+      startDate = subMonths(now, 2);
+      startDate.setDate(1);
+      endDate = now;
+      break;
+    case "yesterday":
+      startDate = subDays(now, 1);
+      endDate = startDate;
+      break;
+    case "one_week":
+      endDate = subDays(now, 1);
+      startDate = subDays(endDate, 7);
+      break;
+    case "one_month":
+      endDate = subDays(now, 1);
+      startDate = subMonths(endDate, 1);
+      break;
+    case "six_months":
+      startDate = subMonths(now, 6);
+      endDate = now;
+      break;
+    case "twelve_months":
+      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      endDate = new Date();
+      break;
+    case "custom_date_range":
+      if (!customStartDate || !customEndDate) {
+        throw new Error("Custom start and end dates are required for custom_date_range filter");
+      }
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+      break;
+    default:
+      throw new Error("Invalid filter specified");
+  }
+
+  return { startDate, endDate };
+};
+
+
+export const getProfitTableService = async (filter, customStartDate, customEndDate) => {
+  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+
+  const formattedStartDate = format(startDate, 'yyyy-MM');
+  const formattedEndDate = format(endDate, 'yyyy-MM');
+
+  const salesAndCosts = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        totalSales: { $sum: { $toDouble: "$totalPrice" } },
+        costOfGoodsSold: { $sum: { $toDouble: "$totalCost" } },
+        totalRefunds: { $sum: { $toDouble: "$totalRefunded" } },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const marketing = await MetaAdInsights.aggregate([
+    {
+      $match: {
+        date: {
+          $gte: formattedStartDate,
+          $lte: formattedEndDate,
+        },
+      },
+    },
+    { $unwind: "$insights" },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        marketingSpend: { $sum: "$insights.spend" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+
+  const shippingHandling = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        shippingHandlingCost: { $sum: { $toDouble: "$shippingCost" } }, 
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+
+  const transactionCosts = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        transactionCost: { $sum: { $toDouble: "$transactionFee" } }, 
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+
+  const taxes = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        taxes: { $sum: { $toDouble: "$taxes" } }, 
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const overhead = await OverheadCost.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
+        overheadCost: { $sum: "$overheadCost" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1 },
+    },
+  ]);
+
+  const dataMap = {};
+
+  const generateKey = (year, month) => `${year}-${month}`;
+
+  // Populate sales and costs
+  salesAndCosts.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].totalSales = item.totalSales;
+    dataMap[key].costOfGoodsSold = item.costOfGoodsSold;
+    dataMap[key].totalRefunds = item.totalRefunds;
+  });
+
+  // Populate marketing spend
+  marketing.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].marketingSpend = item.marketingSpend;
+  });
+
+  // Populate shipping & handling
+  shippingHandling.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].shippingHandlingCost = item.shippingHandlingCost;
+  });
+
+  // Populate transaction costs
+  transactionCosts.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].transactionCost = item.transactionCost;
+  });
+
+  // Populate taxes
+  taxes.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].taxes = item.taxes;
+  });
+
+  // Populate overhead costs
+  overhead.forEach(item => {
+    const { year, month } = item._id;
+    const key = generateKey(year, month);
+    if (!dataMap[key]) dataMap[key] = {};
+    dataMap[key].overheadCost = item.overheadCost;
+  });
+
+  // Generate a list of months within the range
+  const monthsList = [];
+  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const last = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  while (current <= last) {
+    const monthName = format(current, 'MMM').toLowerCase(); // e.g., 'jan', 'feb'
+    const key = `${current.getFullYear()}-${current.getMonth() + 1}`;
+    monthsList.push({ key, month: monthName });
+    current.setMonth(current.getMonth() + 1);
+  }
+
+  // Initialize the response structure
+  const response = [
+    { category: "Total Sales" },
+    { category: "Costs of Goods Sold" },
+    { category: "%" },
+    { category: "Marketing" },
+    { category: "%" },
+    { category: "Shipping & Handling" },
+    { category: "%" },
+    { category: "Transaction" },
+    { category: "%" },
+    { category: "Refunds" },
+    { category: "%" },
+    { category: "Taxes" },
+    { category: "%" },
+    { category: "Overhead" },
+    { category: "Net Profit" },
+  ];
+
+  // Populate the response with monthly data
+  monthsList.forEach(({ key, month }) => {
+    const data = dataMap[key] || {};
+
+    // Calculate Net Profit
+    const netProfit =
+      (data.totalSales || 0) -
+      (data.costOfGoodsSold || 0) -
+      (data.marketingSpend || 0) -
+      (data.shippingHandlingCost || 0) -
+      (data.transactionCost || 0) -
+      (data.totalRefunds || 0) -
+      (data.taxes || 0) -
+      (data.overheadCost || 0);
+
+    // Calculate percentages relative to Total Sales
+    const totalSales = data.totalSales || 0;
+    const costsOfGoodsSoldPct = totalSales ? ((data.costOfGoodsSold || 0) / totalSales) * 100 : 0;
+    const marketingPct = totalSales ? ((data.marketingSpend || 0) / totalSales) * 100 : 0;
+    const shippingHandlingPct = totalSales ? ((data.shippingHandlingCost || 0) / totalSales) * 100 : 0;
+    const transactionPct = totalSales ? ((data.transactionCost || 0) / totalSales) * 100 : 0;
+    const refundsPct = totalSales ? ((data.totalRefunds || 0) / totalSales) * 100 : 0;
+    const taxesPct = totalSales ? ((data.taxes || 0) / totalSales) * 100 : 0;
+    const overheadPct = totalSales ? ((data.overheadCost || 0) / totalSales) * 100 : 0;
+
+    // Populate each category in the response
+    response[0][month] = `$${(data.totalSales || 0).toFixed(2)}`;
+    response[1][month] = `$${(data.costOfGoodsSold || 0).toFixed(2)}`;
+    response[2][month] = `${costsOfGoodsSoldPct.toFixed(2)}%`;
+    response[3][month] = `$${(data.marketingSpend || 0).toFixed(2)}`;
+    response[4][month] = `${marketingPct.toFixed(2)}%`;
+    response[5][month] = `$${(data.shippingHandlingCost || 0).toFixed(2)}`;
+    response[6][month] = `${shippingHandlingPct.toFixed(2)}%`;
+    response[7][month] = `$${(data.transactionCost || 0).toFixed(2)}`;
+    response[8][month] = `${transactionPct.toFixed(2)}%`;
+    response[9][month] = `$${(data.totalRefunds || 0).toFixed(2)}`;
+    response[10][month] = `${refundsPct.toFixed(2)}%`;
+    response[11][month] = `$${(data.taxes || 0).toFixed(2)}`;
+    response[12][month] = `${taxesPct.toFixed(2)}%`;
+    response[13][month] = `$${(data.overheadCost || 0).toFixed(2)}`;
+    response[14][month] = `$${netProfit.toFixed(2)}`;
+  });
+
+  return response;
+};
+
+export const getCostTrendsService = async (filter, customStartDate, customEndDate) => {
+  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+
+  const costsWithoutOverhead = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          day: { $dayOfMonth: "$createdAt" },
+          month: { $month: "$createdAt" },
+          year: { $year: "$createdAt" },
+        },
+        totalCost: { $sum: { $toDouble: "$totalCost" } },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 },
+    },
+  ]);
+
+  const overheadCosts = await OverheadCost.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          day: { $dayOfMonth: "$createdAt" },
+          month: { $month: "$createdAt" },
+          year: { $year: "$createdAt" },
+        },
+        overheadCost: { $sum: "$overheadCost" },
+      },
+    },
+    {
+      $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 },
+    },
+  ]);
+
+  const costsMap = {};
+
+  const generateKey = (year, month, day) => `${year}-${month}-${day}`;
+
+  costsWithoutOverhead.forEach(item => {
+    const { year, month, day } = item._id;
+    const key = generateKey(year, month, day);
+    if (!costsMap[key]) costsMap[key] = { date: "", totalCostsWithoutOverhead: 0, totalCostsWithOverhead: 0 };
+    costsMap[key].totalCostsWithoutOverhead += item.totalCost;
+  });
+
+  overheadCosts.forEach(item => {
+    const { year, month, day } = item._id;
+    const key = generateKey(year, month, day);
+    if (!costsMap[key]) costsMap[key] = { date: "", totalCostsWithoutOverhead: 0, totalCostsWithOverhead: 0 };
+    costsMap[key].totalCostsWithOverhead += item.overheadCost;
+  });
+
+  Object.keys(costsMap).forEach(key => {
+    costsMap[key].totalCostsWithOverhead += costsMap[key].totalCostsWithoutOverhead;
+  });
+
+  const datesList = [];
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const key = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+    const formattedDate = format(currentDate, 'dd MMM');
+    datesList.push({ key, date: formattedDate });
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  const response = datesList.map(({ key, date }) => {
+    const data = costsMap[key] || { totalCostsWithOverhead: 0, totalCostsWithoutOverhead: 0 };
+    return {
+      date,
+      totalCostsWithOverhead: parseFloat(data.totalCostsWithOverhead.toFixed(2)),
+      totalCostsWithoutOverhead: parseFloat(data.totalCostsWithoutOverhead.toFixed(2)),
+    };
+  });
+
+  return response;
+};
+
 
 export default {
   calculateGrossProfitData,
