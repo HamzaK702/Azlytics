@@ -497,7 +497,7 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
   let endDate;
 
   switch (filter) {
-    case "three_months":
+    case "3m": 
       startDate = subMonths(now, 2);
       startDate.setDate(1);
       endDate = now;
@@ -506,19 +506,19 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
       startDate = subDays(now, 1);
       endDate = startDate;
       break;
-    case "one_week":
+    case "7d":  
       endDate = subDays(now, 1);
       startDate = subDays(endDate, 7);
       break;
-    case "one_month":
+    case "30d":  
       endDate = subDays(now, 1);
       startDate = subMonths(endDate, 1);
       break;
-    case "six_months":
+    case "6m": 
       startDate = subMonths(now, 6);
       endDate = now;
       break;
-    case "twelve_months":
+    case "12m":  
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
       endDate = new Date();
       break;

@@ -92,7 +92,8 @@ export const getCostTrendsController = async (req, res) => {
   try {
     const { filter, customStartDate, customEndDate } = req.query;
 
-    const allowedFilters = ["yesterday", "one_week", "one_month", "three_months", "six_months", "twelve_months", "custom_date_range"];
+    const allowedFilters = ["yesterday", "7d", "30d", "3m", "6m", "12m", "custom_date_range"];
+    
     if (!filter || !allowedFilters.includes(filter)) {
       return res.status(400).json({ message: `Invalid or missing filter parameter. Allowed values are: ${allowedFilters.join(", ")}.` });
     }
