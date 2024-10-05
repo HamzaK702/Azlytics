@@ -497,7 +497,7 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
   let endDate;
 
   switch (filter) {
-    case "three_months":
+    case "3m": 
       startDate = subMonths(now, 2);
       startDate.setDate(1);
       endDate = now;
@@ -506,19 +506,19 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
       startDate = subDays(now, 1);
       endDate = startDate;
       break;
-    case "one_week":
+    case "7d":  
       endDate = subDays(now, 1);
       startDate = subDays(endDate, 7);
       break;
-    case "one_month":
+    case "30d":  
       endDate = subDays(now, 1);
       startDate = subMonths(endDate, 1);
       break;
-    case "six_months":
+    case "6m": 
       startDate = subMonths(now, 6);
       endDate = now;
       break;
-    case "twelve_months":
+    case "12m":  
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
       endDate = new Date();
       break;
@@ -535,7 +535,6 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
 
   return { startDate, endDate };
 };
-
 
 export const getProfitTableService = async (filter, customStartDate, customEndDate) => {
   const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
@@ -890,7 +889,247 @@ export const getCostTrendsService = async (filter, customStartDate, customEndDat
   return response;
 };
 
+export const getGrossProfitService = async (filter, customStartDate, customEndDate) => {
+  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
 
+  // Aggregate Overhead from OverheadCost collection
+  const overheadAggregation = await OverheadCost.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalOverhead: { $sum: "$overheadCost" },
+      },
+    },
+  ]);
+
+  const totalOverhead = overheadAggregation.length > 0 ? overheadAggregation[0].totalOverhead : 0;
+
+  // Aggregate Shipping from Orders collection
+  const shippingAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalShipping: { $sum: { $toDouble: "$shippingCost" } },
+      },
+    },
+  ]);
+
+  const totalShipping = shippingAggregation.length > 0 ? shippingAggregation[0].totalShipping : 0;
+
+  // Aggregate Transaction from Orders collection
+  const transactionAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalTransaction: { $sum: { $toDouble: "$transactionFee" } },
+      },
+    },
+  ]);
+
+  const totalTransaction = transactionAggregation.length > 0 ? transactionAggregation[0].totalTransaction : 0;
+
+  // Aggregate Refunds from Orders collection
+  const refundsAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalRefunds: { $sum: { $toDouble: "$totalRefunded" } },
+      },
+    },
+  ]);
+
+  const totalRefunds = refundsAggregation.length > 0 ? refundsAggregation[0].totalRefunds : 0;
+
+  // Aggregate Taxes from Orders collection
+  const taxesAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalTaxes: { $sum: { $toDouble: "$taxes" } },
+      },
+    },
+  ]);
+
+  const totalTaxes = taxesAggregation.length > 0 ? taxesAggregation[0].totalTaxes : 0;
+
+  const response = [
+    { "name": "Overhead", "value": parseFloat(totalOverhead.toFixed(2)) },
+    { "name": "Shipping", "value": parseFloat(totalShipping.toFixed(2)) },
+    { "name": "Transaction", "value": parseFloat(totalTransaction.toFixed(2)) },
+    { "name": "Refunds", "value": parseFloat(totalRefunds.toFixed(2)) },
+    { "name": "Taxes", "value": parseFloat(totalTaxes.toFixed(2)) },
+  ];
+
+  return response;
+};
+
+export const getCostsBreakdownService = async (filter, customStartDate, customEndDate) => {
+  // Get the date range based on the filter
+  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+
+  // Initialize total costs
+  let totalOverhead = 0;
+  let totalShipping = 0;
+  let totalTransaction = 0;
+  let totalRefunds = 0;
+  let totalTaxes = 0;
+
+  // Fetch Overhead Costs
+  const overheadAggregation = await OverheadCost.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalOverhead: { $sum: "$overheadCost" },
+      },
+    },
+  ]);
+
+  if (overheadAggregation.length > 0) {
+    totalOverhead = overheadAggregation[0].totalOverhead;
+  }
+
+  // Fetch Orders Data
+  const ordersAggregation = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalShipping: { $sum: { $toDouble: "$shippingCost" } },
+        totalTransaction: { $sum: { $toDouble: "$transactionFee" } },
+        totalRefunds: { $sum: { $toDouble: "$totalRefunded" } },
+        totalTaxes: { $sum: { $toDouble: "$taxes" } },
+      },
+    },
+  ]);
+
+  if (ordersAggregation.length > 0) {
+    const data = ordersAggregation[0];
+    totalShipping = data.totalShipping;
+    totalTransaction = data.totalTransaction;
+    totalRefunds = data.totalRefunds;
+    totalTaxes = data.totalTaxes;
+  }
+
+  // Prepare the response
+  const response = [
+    { "name": "Overhead", "value": parseFloat(totalOverhead.toFixed(2)) },
+    { "name": "Shipping", "value": parseFloat(totalShipping.toFixed(2)) },
+    { "name": "Transaction", "value": parseFloat(totalTransaction.toFixed(2)) },
+    { "name": "Refunds", "value": parseFloat(totalRefunds.toFixed(2)) },
+    { "name": "Taxes", "value": parseFloat(totalTaxes.toFixed(2)) },
+  ];
+
+  return response;
+};
+
+export const getProductsBreakdownService = async (filter, customStartDate, customEndDate) => {
+  // Get the date range based on the filter
+  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+
+  // Fetch orders within the date range
+  const orders = await Order.find({
+    createdAt: { $gte: startDate, $lte: endDate },
+  }).populate({
+    path: 'lineItems.product',
+    model: 'Product',
+    select: 'title description images variants',
+  });
+
+  // Create a map to aggregate data per product
+  const productMap = {};
+
+  orders.forEach(order => {
+    order.lineItems.forEach(lineItem => {
+      const product = lineItem.product;
+      if (!product) return; // Skip if product data is missing
+
+      const productId = product.id;
+
+      // Initialize product data if not already present
+      if (!productMap[productId]) {
+        productMap[productId] = {
+          productImage: product.images && product.images.length > 0 ? product.images[0].originalSrc : '',
+          productTitle: product.title,
+          productSubTitle: product.description || '',
+          sales: 0,
+          netSales: 0,
+          profit: 0,
+          costOfGoodsSold: 0,
+          refunds: 0,
+          quantitySold: 0,
+        };
+      }
+
+      const totalPrice = parseFloat(order.totalPrice) || 0;
+      const totalRefunded = parseFloat(order.totalRefunded) || 0;
+      const totalCost = parseFloat(order.totalCost) || 0;
+
+      const quantity = lineItem.quantity || 0;
+
+      productMap[productId].sales += totalPrice;
+      productMap[productId].netSales += (totalPrice - totalRefunded);
+      productMap[productId].profit += (totalPrice - totalRefunded - totalCost);
+      productMap[productId].costOfGoodsSold += totalCost;
+      productMap[productId].refunds += totalRefunded;
+      productMap[productId].quantitySold += quantity;
+    });
+  });
+
+  // Calculate profit margin and prepare the final response
+  const response = Object.values(productMap).map(productData => {
+    const { sales, netSales, profit } = productData;
+    const profitMargin = sales ? (profit / sales) * 100 : 0;
+
+    return {
+      productImage: productData.productImage,
+      productTitle: productData.productTitle,
+      productSubTitle: productData.productSubTitle,
+      sales: parseFloat(sales.toFixed(2)),
+      netSales: parseFloat(netSales.toFixed(2)),
+      profit: parseFloat(profit.toFixed(2)),
+      profitMargin: parseFloat(profitMargin.toFixed(2)),
+    };
+  });
+
+  // Sort the response based on sales or any other criteria if needed
+  response.sort((a, b) => b.sales - a.sales);
+
+  return response;
+};
 export default {
   calculateGrossProfitData,
 };
