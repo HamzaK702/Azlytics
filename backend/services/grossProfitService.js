@@ -1056,80 +1056,94 @@ export const getCostsBreakdownService = async (filter, customStartDate, customEn
   return response;
 };
 
-export const getProductsBreakdownService = async (filter, customStartDate, customEndDate) => {
-  // Get the date range based on the filter
+export const getProductsBreakdownService = async (filter, variant, customStartDate, customEndDate) => {
   const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
 
-  // Fetch orders within the date range
-  const orders = await Order.find({
-    createdAt: { $gte: startDate, $lte: endDate },
-  }).populate({
-    path: 'lineItems.product',
-    model: 'Product',
-    select: 'title description images variants',
+  let groupField;
+  if (variant === 'products') {
+    groupField = '$lineItems.product.id';
+  } else if (variant === 'variants') {
+    groupField = '$lineItems.variant.id';
+  } else if (variant === 'categories') {
+    groupField = '$lineItems.product.productType';
+  }
+
+  const data = await Order.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    { $unwind: '$lineItems' },
+    {
+      $group: {
+        _id: groupField,
+        totalSales: { $sum: { $multiply: [{ $toDouble: '$lineItems.price' }, '$lineItems.quantity'] } },
+        totalCost: { $sum: { $multiply: [{ $toDouble: '$lineItems.costPrice' }, '$lineItems.quantity'] } },
+        quantitySold: { $sum: '$lineItems.quantity' },
+        productInfo: { $first: '$lineItems.product' },
+        variantInfo: { $first: '$lineItems.variant' },
+      },
+    },
+    {
+      $addFields: {
+        profit: { $subtract: ['$totalSales', '$totalCost'] },
+        profitMargin: {
+          $cond: {
+            if: { $eq: ['$totalSales', 0] },
+            then: 0,
+            else: { $multiply: [{ $divide: ['$profit', '$totalSales'] }, 100] },
+          },
+        },
+      },
+    },
+    {
+      $sort: { totalSales: -1 },
+    },
+    {
+      $limit: 10,
+    },
+  ]);
+
+  const response = data.map(item => {
+    let formattedItem = {};
+    if (variant === 'products') {
+      formattedItem = {
+        productImage: (item.productInfo.images && item.productInfo.images[0]) ? item.productInfo.images[0].src : 'https://i.ibb.co/T8MtPY7/product1.png',
+        productTitle: item.productInfo.title || 'Unknown Product',
+        productSubTitle: item.productInfo.description || '',
+        sales: parseFloat(item.totalSales.toFixed(2)),
+        netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
+        profit: parseFloat(item.profit.toFixed(2)),
+        profitMargin: parseFloat(item.profitMargin.toFixed(2)),
+      };
+    } else if (variant === 'variants') {
+      formattedItem = {
+        variantImage: (item.variantInfo.image && item.variantInfo.image.src) ? item.variantInfo.image.src : 'https://i.ibb.co/T8MtPY7/product1.png',
+        variantTitle: item.variantInfo.title || 'Unknown Variant',
+        variantSubTitle: item.productInfo.title || '',
+        sales: parseFloat(item.totalSales.toFixed(2)),
+        netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
+        profit: parseFloat(item.profit.toFixed(2)),
+        profitMargin: parseFloat(item.profitMargin.toFixed(2)),
+      };
+    } else if (variant === 'categories') {
+      formattedItem = {
+        categoryImage: (item.productInfo.images && item.productInfo.images[0]) ? item.productInfo.images[0].src : 'https://i.ibb.co/T8MtPY7/product1.png',
+        categoryTitle: item._id || 'Unknown Category',
+        categorySubTitle: '',
+        sales: parseFloat(item.totalSales.toFixed(2)),
+        netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
+        profit: parseFloat(item.profit.toFixed(2)),
+        profitMargin: parseFloat(item.profitMargin.toFixed(2)),
+      };
+    }
+    return formattedItem;
   });
-
-  // Create a map to aggregate data per product
-  const productMap = {};
-
-  orders.forEach(order => {
-    order.lineItems.forEach(lineItem => {
-      const product = lineItem.product;
-      if (!product) return; // Skip if product data is missing
-
-      const productId = product.id;
-
-      // Initialize product data if not already present
-      if (!productMap[productId]) {
-        productMap[productId] = {
-          productImage: product.images && product.images.length > 0 ? product.images[0].originalSrc : '',
-          productTitle: product.title,
-          productSubTitle: product.description || '',
-          sales: 0,
-          netSales: 0,
-          profit: 0,
-          costOfGoodsSold: 0,
-          refunds: 0,
-          quantitySold: 0,
-        };
-      }
-
-      const totalPrice = parseFloat(order.totalPrice) || 0;
-      const totalRefunded = parseFloat(order.totalRefunded) || 0;
-      const totalCost = parseFloat(order.totalCost) || 0;
-
-      const quantity = lineItem.quantity || 0;
-
-      productMap[productId].sales += totalPrice;
-      productMap[productId].netSales += (totalPrice - totalRefunded);
-      productMap[productId].profit += (totalPrice - totalRefunded - totalCost);
-      productMap[productId].costOfGoodsSold += totalCost;
-      productMap[productId].refunds += totalRefunded;
-      productMap[productId].quantitySold += quantity;
-    });
-  });
-
-  // Calculate profit margin and prepare the final response
-  const response = Object.values(productMap).map(productData => {
-    const { sales, netSales, profit } = productData;
-    const profitMargin = sales ? (profit / sales) * 100 : 0;
-
-    return {
-      productImage: productData.productImage,
-      productTitle: productData.productTitle,
-      productSubTitle: productData.productSubTitle,
-      sales: parseFloat(sales.toFixed(2)),
-      netSales: parseFloat(netSales.toFixed(2)),
-      profit: parseFloat(profit.toFixed(2)),
-      profitMargin: parseFloat(profitMargin.toFixed(2)),
-    };
-  });
-
-  // Sort the response based on sales or any other criteria if needed
-  response.sort((a, b) => b.sales - a.sales);
 
   return response;
 };
+
 export default {
   calculateGrossProfitData,
 };
