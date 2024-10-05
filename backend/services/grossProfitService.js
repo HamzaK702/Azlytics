@@ -1117,11 +1117,23 @@ export const getProductsBreakdownService = async (filter, variant, customStartDa
         profit: parseFloat(item.profit.toFixed(2)),
         profitMargin: parseFloat(item.profitMargin.toFixed(2)),
       };
-    } else if (variant === 'variants') {
+    } else  if (variant === 'variants') {
+      const variantImage = item.variantInfo && item.variantInfo.image && item.variantInfo.image.src
+        ? item.variantInfo.image.src
+        : 'https://i.ibb.co/T8MtPY7/product1.png';
+  
+      const variantTitle = item.variantInfo && item.variantInfo.title
+        ? item.variantInfo.title
+        : 'Unknown Variant';
+  
+      const variantSubTitle = item.productInfo && item.productInfo.title
+        ? item.productInfo.title
+        : '';
+  
       formattedItem = {
-        variantImage: (item.variantInfo.image && item.variantInfo.image.src) ? item.variantInfo.image.src : 'https://i.ibb.co/T8MtPY7/product1.png',
-        variantTitle: item.variantInfo.title || 'Unknown Variant',
-        variantSubTitle: item.productInfo.title || '',
+        variantImage,
+        variantTitle,
+        variantSubTitle,
         sales: parseFloat(item.totalSales.toFixed(2)),
         netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
         profit: parseFloat(item.profit.toFixed(2)),
