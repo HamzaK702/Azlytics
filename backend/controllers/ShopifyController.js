@@ -38,7 +38,7 @@ export class ShopifyController {
             } catch (error) {
                 console.error('Error getting Shopify access token:', error.message);
               
-                return res.redirect(`http://localhost:5173/dashboard?shopify=false`);
+                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=false`);
             }
         } else {
             return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=false`);
