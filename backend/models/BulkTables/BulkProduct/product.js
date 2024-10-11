@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
+const ProductImageSchema = new Schema({
+  id: { type: String },
+  src: { type: String },
+  altText: { type: String },
+}, { _id: false });
+
 
 // Schema for Product Variants
 const ProductVariantSchema = new Schema({
@@ -9,6 +15,8 @@ const ProductVariantSchema = new Schema({
   displayName: { type: String },
   image: {
     id: { type: String, default: null },
+    src: { type: String, default: null },
+    altText: { type: String, default: null },
     originalSrc: { type: String, default: null },
     transformedSrc: { type: String, default: null }
   },
@@ -60,10 +68,10 @@ const ProductSchema = new Schema({
   totalInventory: { type: Number },
   updatedAt: { type: Date },
   variants: [ProductVariantSchema],
+  images: [ProductImageSchema],
   userShopId: { type: Schema.Types.ObjectId, ref: 'UserShop' },  
   shopName: String,
 }, { strict: false });
-
 
 const Product = mongoose.model('Product', ProductSchema);
 export default Product;

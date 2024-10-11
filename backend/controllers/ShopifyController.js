@@ -11,34 +11,37 @@ dotenv.config();
 export class ShopifyController {
     static async handleAuth(req, res) {
         const { shop, hmac, code, state } = req.query;
-        const  userId = state.split('-')[0]; 
+        const userId = state.split('-')[0]; 
         const stateCookie = req.cookies.state;
-
+    
         if (state !== stateCookie) {
             return res.status(403).send('Request origin cannot be verified');
         }
-
+    
         if (shop && hmac && code) {
             try {
                 const accessToken = await ShopifyService.getAccessToken(shop, code);
-                console.log(shop, hmac, code)
-               
-               const result  = await UserShop.findOneAndUpdate(
-                {userId , shop},
-                {token:accessToken},
-                {upsert: true, new: true , setDefaultsOnInsert: true} 
-               )
-               console.log("UserShop entry processed:", result);
-        
+                console.log(shop, hmac, code);
+                
+                const result = await UserShop.findOneAndUpdate(
+                    { userId, shop },
+                    { token: accessToken },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+                console.log("UserShop entry processed:", result);
+    
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
-                console.log("We received a token: " + accessToken)
-                res.status(200).send('Success, token: ' + accessToken);
-
+                console.log("We received a token: " + accessToken);
+    
+                
+                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=true`);
             } catch (error) {
-                res.status(500).send('Error getting Shopify access token: ' + error.message);
+                console.error('Error getting Shopify access token:', error.message);
+              
+                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=false`);
             }
         } else {
-            res.status(400).send('Required parameters missing');
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=false`);
         }
     }
 

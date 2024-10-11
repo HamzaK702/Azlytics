@@ -161,23 +161,27 @@ export const getCostsBreakdownController = async (req, res) => {
 
 export const getProductsBreakdownController = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate } = req.query;
+    const { filter, variant, customStartDate, customEndDate } = req.query;
 
-    const allowedFilters = ["yesterday", "7d", "30d", "3m", "6m", "12m", "custom_date_range"];
+    const allowedFilters = ["yesterday", "7d", "30d", "3m", "6m", "12m", "one_week", "custom_date_range"];
+    const allowedVariants = ["products", "variants", "categories"];
 
     if (!filter || !allowedFilters.includes(filter)) {
       return res.status(400).json({ message: `Invalid or missing filter parameter. Allowed values are: ${allowedFilters.join(", ")}.` });
+    }
+
+    if (!variant || !allowedVariants.includes(variant)) {
+      return res.status(400).json({ message: `Invalid or missing variant parameter. Allowed values are: ${allowedVariants.join(", ")}.` });
     }
 
     if (filter === "custom_date_range" && (!customStartDate || !customEndDate)) {
       return res.status(400).json({ message: "Custom start and end dates are required for custom_date_range filter." });
     }
 
-    // Call the service function to get the products breakdown
-    const productsBreakdown = await getProductsBreakdownService(filter, customStartDate, customEndDate);
+    // Call the service function to get the data
+    const data = await getProductsBreakdownService(filter, variant, customStartDate, customEndDate);
 
-    // Send the response
-    res.json(productsBreakdown);
+    res.json(data);
   } catch (error) {
     console.error("Error fetching products breakdown:", error);
     res.status(500).json({ message: "Error fetching products breakdown." });

@@ -7,6 +7,7 @@ import {
   saveDailyInsights
 } from '../services/facebookService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
+dotenv.config();
 
 export const redirectToFacebook = (req, res) => {
     const userId = req.query.userId
@@ -48,15 +49,15 @@ export const handleFacebookCallback = async (req, res) => {
             }
           }
           
-           
+          return res.redirect(`${process.env.FRONTEND_URL}/dashboard?metaAds=true`); 
 
-            res.json({
-              message: 'Facebook authentication successful',
-              userId,
-              accessToken,
-              adAccounts,
-              userAdAccount
-            });
+            // res.json({
+            //   message: 'Facebook authentication successful',
+            //   userId,
+            //   accessToken,
+            //   adAccounts,
+            //   userAdAccount
+            // });
           } catch (error) {
             console.error('Error storing Facebook token:', error);
             res.status(500).send('Error storing Facebook token');
