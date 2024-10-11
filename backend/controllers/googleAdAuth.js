@@ -3,6 +3,7 @@
 import { getAuthUrl, getToken } from '../services/googleAdAuthService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
 import { listAccessibleCustomers } from '../services/googleAccessibleCustomers.js'; 
+dotenv.config();
 
 export const getGoogleAuthUrl = (req, res) => {
   const userId = req.query.userId
@@ -63,12 +64,12 @@ export const handleGoogleAuthCallback =  (req, res) => {
       console.error('Error storing token:', error);
       res.status(500).json({ error: 'Error storing token' });
       }
-         
-      res.json({
-        message: 'Google authentication successful',
-        userId,
-        token,
-        customers: customers || null
-      });
+      return res.redirect(`${process.env.FRONTEND_URL}/dashboard?googleAds=true`);   
+      // res.json({
+      //   message: 'Google authentication successful',
+      //   userId,
+      //   token,
+      //   customers: customers || null
+      // });
     });
   };

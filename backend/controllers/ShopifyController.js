@@ -33,15 +33,15 @@ export class ShopifyController {
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
                 console.log("We received a token: " + accessToken);
     
-               
-                return res.redirect(`http://localhost:5173/dashboard?shopify=true`);
+                
+                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=true`);
             } catch (error) {
                 console.error('Error getting Shopify access token:', error.message);
               
                 return res.redirect(`http://localhost:5173/dashboard?shopify=false`);
             }
         } else {
-            return res.redirect(`http://localhost:5173/dashboard?shopify=false`);
+            return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=false`);
         }
     }
 

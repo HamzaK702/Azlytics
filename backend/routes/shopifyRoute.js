@@ -2,7 +2,7 @@ import express from 'express';
 import { ShopifyController } from '../controllers/ShopifyController.js';
 
 const router = express.Router();
-
+//http://localhost:3001/api/shopify?shop=dumbclient.myshopify.com&userId=66bb684d7c41ca028cbeb0ab
 router.get('/shopify', (req, res) => {
     const shop = req.query.shop;
     const userId = req.query.userId;
