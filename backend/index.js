@@ -23,6 +23,8 @@ import Product from "./models/BulkTables/BulkProduct/product.js";
 import overHeadCostRoute from "./routes/overheadCostRoute.js";
 import productRoutes from "./routes/productRoutes.js";
 import profitabilityRoutes from "./routes/profitRoute.js";
+import gptRoutes from "./routes/gptRoutes.js"
+
 /* CONFIGURATIONS */
 dotenv.config();
 
@@ -76,6 +78,8 @@ app.use('/api' , overHeadCostRoute);
 app.use('/api' , productRoutes);
 app.use('/api' , InventoryRoutes);
 app.use('/api' , profitabilityRoutes);
+app.use('/api' , gptRoutes);
+ 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;
 mongoose.set("strictQuery", true);

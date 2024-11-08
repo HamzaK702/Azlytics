@@ -3,6 +3,7 @@
 import { getAuthUrl, getToken } from '../services/googleAdAuthService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
 import { listAccessibleCustomers } from '../services/googleAccessibleCustomers.js'; 
+import dotenv from 'dotenv';
 dotenv.config();
 
 export const getGoogleAuthUrl = (req, res) => {

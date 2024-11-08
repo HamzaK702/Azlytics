@@ -7,6 +7,7 @@ import {
   saveDailyInsights
 } from '../services/facebookService.js';
 import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
+import dotenv from 'dotenv';
 dotenv.config();
 
 export const redirectToFacebook = (req, res) => {
