@@ -7,6 +7,7 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import morgan from "morgan";
 import passport from "passport";
+import bodyParser from "body-parser"; // Import body-parser
 import "./config/passportConfig.js";
 import InventoryRoutes from "./routes/InventoryRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -36,7 +37,18 @@ app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(morgan("common"));
 app.use(cors());
-app.use(cookieParser());
+app.use(cookieParser()); 
+app.use(
+  bodyParser.json({
+    type: '/',
+    limit: '50mb',
+    verify: function (req, res, buf) {
+      if (req.url.startsWith('/webhooks')) {
+        req.rawbody = buf;
+      }
+    },
+  })
+);
 
 // Session middleware
 app.use(
@@ -56,10 +68,10 @@ app.use(passport.session());
 app.get("/hello", async (req, res) => {
   const shop = "dumbclient.myshopify.com";
   const token = "shpua_9dd90273c982021d4c9bed11b7bc6e6c";
-  const orderId = "gid://shopify/Order/6052399480893";
-  const resp = await ShopifyService.getShippingRates(shop, token, orderId);
-  console.log(resp);
-  res.send("Hello, Login Success ");
+  const orderId = "gid://shopify/Order/6052399480893"
+  //const resp = await ShopifyService.getShippingRates(shop, token, orderId)
+  
+  res.send('Hello, Login Success ');
 });
 
 /* ROUTES */

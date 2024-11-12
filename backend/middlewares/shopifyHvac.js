@@ -3,6 +3,20 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+export function validateWebhook(req, res, next) {
+  const generatedHash = crypto
+    .createHmac('sha256', config.SHOPIFY_SHARED_SECRET)
+    .update(Buffer.from(req.rawbody))
+    .digest('base64');
+
+  if (generatedHash === req.headers['x-shopify-hmac-sha256']) {
+    next(); // Continue if valid
+  } else {
+    res.sendStatus(403); // Forbidden if invalid
+  }
+}
+
+
 export const verifySHA256 = (req, res, next) => {
   const query = req.query;
 
