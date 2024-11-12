@@ -16,4 +16,4 @@ const formDeletionSchema = new mongoose.Schema({
   },
 });
 
-export default mongoose.model("formDeletion", formDeletionSchema);
+export default mongoose.model("UninstalledShops", formDeletionSchema);
