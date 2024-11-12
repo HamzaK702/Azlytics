@@ -1,18 +1,19 @@
 import dotenv from "dotenv";
 import FormDeletionSchema from "../models/formDeletion.js";
-// import { formDeletionService } from "../services/facebookService.js";
+import UserSchema from "../models/userModel.js";
 dotenv.config();
-
 export const dataDeletionController = async (req, res) => {
   try {
-    const { shopId, shopName } = req.body;
+    const { shopId, shopName, userId } = req.body;
 
-    // validation
-    if (!shopId || !shopName) {
-      return res.status(400).send("Shop Id and Name is required");
+    // Validation
+    if (!shopId || !shopName || !userId) {
+      return res
+        .status(400)
+        .send("User Id, Shop Id, and Shop Name are required");
     }
 
-    // existing data check
+    // Check for existing data deletion request
     const existingData = await FormDeletionSchema.findOne({ shopId });
     if (existingData) {
       return res.status(400).send({
@@ -20,15 +21,28 @@ export const dataDeletionController = async (req, res) => {
       });
     }
 
-    // adding req in db
-    await new FormDeletionSchema({
-      shopId,
-      shopName,
-    }).save();
+    // Check if the user exists
+    const user = await UserSchema.findById(userId); // Added `await` here
+    if (user) {
+      // Add request to the database
+      await new FormDeletionSchema({
+        shopId,
+        shopName,
+      }).save();
 
-    res.status(200).send("Deletion Request Successfully Raised");
+      // Update user's shopifyConnected field to false
+      await UserSchema.findOneAndUpdate(
+        { _id: userId },
+        { shopifyConnected: false },
+        { new: true }
+      );
+
+      res.status(200).send("Deletion Request Successfully Raised");
+    } else {
+      res.status(403).send("User not found with this id");
+    }
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).send({
       error,
     });
