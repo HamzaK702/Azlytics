@@ -5,7 +5,7 @@ dotenv.config();
 
 export function validateWebhook(req, res, next) {
   const generatedHash = crypto
-    .createHmac('sha256', config.SHOPIFY_SHARED_SECRET)
+    .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
     .update(Buffer.from(req.rawbody))
     .digest('base64');
 

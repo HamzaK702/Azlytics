@@ -1,8 +1,8 @@
 import express from "express";
 import { dataDeletionController } from "../controllers/dataDeletion.js";
-import { validateWebhook } from "../middlewares/shopifyHvac.js";
+import { validateWebhook, verifySHA256 } from "../middlewares/shopifyHvac.js";
 const router = express.Router();
 
-router.post("/shop/redact", validateWebhook, dataDeletionController);
+router.post("/shop/redact", verifySHA256, dataDeletionController);
 
 export default router;
