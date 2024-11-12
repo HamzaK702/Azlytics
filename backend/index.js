@@ -89,7 +89,7 @@ app.use("/api", productRoutes);
 app.use("/api", InventoryRoutes);
 app.use("/api", profitabilityRoutes);
 app.use("/api", gptRoutes);
-app.use("/api", dataDeletionRoute);
+app.use("/webhooks", dataDeletionRoute);
 
 /* DATABASE CONNECTION AND SERVER SETUP */
 const PORT = process.env.SERVER_PORT || 3002;
