@@ -23,11 +23,12 @@ router.get("/shopify", (req, res) => {
 });
 
 router.post("/install", (req, res) => {
-  const { hmac, host, shop, timestamp } = req.body;
+  const { host, shop, timestamp } = req.body;
+  const { hmac } = req.query;
   res
     .status(200)
     .send(
-      `Queries Recived hmac=${hmac}, host=${host},shop=${shop} and timestamp=${timestamp}`
+      `Queries and Body Recived hmac=${hmac}, host=${host},shop=${shop} and timestamp=${timestamp}`
     );
 });
 
