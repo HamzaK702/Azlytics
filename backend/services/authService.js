@@ -14,7 +14,7 @@ const registerFirebaseUser = async (userData) => {
 
   const newUser = new User({ name, email, uid });
   await newUser.save();
-
+  //Arham6: orr ab iss newUser ki id lo or userShopId jo tumne argument me dali hai usay userShop find and update krdo --> usershop find by id and update userId with the newUser id 
   const token = jwt.sign({ id: newUser._id, role: newUser.role }, process.env.JWT_SECRET, {
     expiresIn: '1d', // Set token expiration to 1 day
   });

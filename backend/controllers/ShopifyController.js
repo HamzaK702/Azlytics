@@ -11,7 +11,7 @@ dotenv.config();
 export class ShopifyController {
     static async handleAuth(req, res) {
         const { shop, hmac, code, state } = req.query;
-        const userId = state.split('-')[0]; 
+        const userId = state.split('-')[0]; //Arham1: state me ab userId nhi milay gi
         const stateCookie = req.cookies.state;
     
         if (state !== stateCookie) {
@@ -23,18 +23,20 @@ export class ShopifyController {
                 const accessToken = await ShopifyService.getAccessToken(shop, code);
                 console.log(shop, hmac, code);
                 
+                //Arham2: isko find and update k bjaye sirf create krdo orr isme humain ab userId nhi milay gi toh usko required se hata dena UserShopModel me jakr
                 const result = await UserShop.findOneAndUpdate(
                     { userId, shop },
                     { token: accessToken },
                     { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
+                
                 console.log("UserShop entry processed:", result);
     
                 eventEmitter.emit('shopAuthSuccess', { shop, accessToken });
                 console.log("We received a token: " + accessToken);
     
                 
-                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=true`);
+                return res.redirect(`${process.env.FRONTEND_URL}/dashboard?shopify=true`); //Arham3: isko change krke login/signUp page krdo jisme query me shopify ture/false k sath userShop id bhi bhejo jisko tumne step 2 me save krwaya hai  
             } catch (error) {
                 console.error('Error getting Shopify access token:', error.message);
               

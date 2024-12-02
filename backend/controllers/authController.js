@@ -8,9 +8,12 @@ dotenv.config();
 
 // Register function for Firebase-authenticated users
 const registerFirebaseUser = async (req, res) => {
+  //Arham4: tumhe frontend pr userShopId milgaya hoga query usko user register krwatay waqt idhr bhejo ga
   try {
     const userData = req.body;
-    const { user, token } = await authService.registerFirebaseUser(userData);
+    const { user, token } = await authService.registerFirebaseUser(userData); //Arham5: woh user shopId iss function me bhejo
+
+    
     res.status(201).json({ user, token });
   } catch (error) {
     res.status(500).json({ message: error.message });
