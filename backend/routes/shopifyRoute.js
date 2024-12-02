@@ -1,5 +1,6 @@
 import express from "express";
 import { ShopifyController } from "../controllers/ShopifyController.js";
+import { verifySHA256 } from "../middlewares/shopifyHvac.js";
 
 const router = express.Router();
 //http://localhost:3001/api/shopify?shop=dumbclient.myshopify.com&userId=66bb684d7c41ca028cbeb0ab
@@ -22,14 +23,7 @@ router.get("/shopify", (req, res) => {
   }
 });
 
-router.post("/install", (req, res) => {
-  const { hmac, host, shop, timestamp } = req.body;
-  res
-    .status(200)
-    .send(
-      `Queries Recived hmac=${hmac}, host=${host},shop=${shop} and timestamp=${timestamp}`
-    );
-});
+router.post("/install", verifySHA256, ShopifyController.install);
 
 router.get("/shopify/callback", ShopifyController.handleAuth); //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c
 // new updated token with customer fields --> shpua_9dd90273c982021d4c9bed11b7bc6e6c

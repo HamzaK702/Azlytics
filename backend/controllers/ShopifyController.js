@@ -100,6 +100,25 @@ export class ShopifyController {
         }
     }
 
+    static async install(req, res) {
+        const { shop, timestamp } = req.body;
+
+        if (!shop || !timestamp) {
+            return res.status(400).send('Missing required parameters.');
+        }
+
+        const timeDiff = Math.abs(Date.now() / 1000 - timestamp);
+        if (timeDiff > 60 * 5) {  // 5 minutes tolerance
+            return res.status(400).send('Request timestamp is too old.');
+        }
+
+        const state = `${ShopifyController.nonce()}`; 
+
+        const installUrl = ShopifyController.generateInstallUrl(shop, state);
+
+        return res.redirect(installUrl);
+    }
+
     static async createBulkOperation(req, res) {
         const { shop, token, query } = req.body;
         
