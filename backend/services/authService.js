@@ -1,23 +1,42 @@
-
 // Import necessary modules
-import User from '../models/userModel.js';
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
+import User from "../models/userModel.js";
+import UserShop from "../models/userShopModel.js";
 
 // Function to store user data in the database and return an access token
-const registerFirebaseUser = async (userData) => {
+const registerFirebaseUser = async (userData, userShopId) => {
+  console.log("🚀 ~ registerFirebaseUser ~ userShopId:", userShopId);
   const { name, email, uid } = userData;
-  const existingUser = await User.findOne({ email });
 
+  // Check if the user already exists
+  const existingUser = await User.findOne({ email });
   if (existingUser) {
-    throw new Error('User already exists');
+    throw new Error("User already exists");
   }
 
+  // Create a new user
   const newUser = new User({ name, email, uid });
   await newUser.save();
-  //Arham6: orr ab iss newUser ki id lo or userShopId jo tumne argument me dali hai usay userShop find and update krdo --> usershop find by id and update userId with the newUser id 
-  const token = jwt.sign({ id: newUser._id, role: newUser.role }, process.env.JWT_SECRET, {
-    expiresIn: '1d', // Set token expiration to 1 day
-  });
+
+  // Update the UserShop with the user ID if userShopId is provided
+  if (userShopId) {
+    const updatedShop = await UserShop.findOneAndUpdate(
+      { _id: userShopId }, // Locate UserShop by its ID
+      { userId: newUser._id }, // Set the userId field
+      { new: true } // Return the updated document
+    );
+
+    if (!updatedShop) {
+      throw new Error("UserShop not found");
+    }
+  }
+
+  // Generate a JWT token
+  const token = jwt.sign(
+    { id: newUser._id, role: newUser.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" }
+  );
 
   return { user: newUser, token };
 };
@@ -27,12 +46,16 @@ const loginFirebaseUser = async (uid) => {
   const user = await User.findOne({ uid });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error("User not found");
   }
 
-  const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: '1d', // Set token expiration to 1 day
-  });
+  const token = jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d", // Set token expiration to 1 day
+    }
+  );
 
   return { user, token };
 };
@@ -42,7 +65,7 @@ const authenticate = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
-    throw new Error('Invalid token');
+    throw new Error("Invalid token");
   }
 };
 
