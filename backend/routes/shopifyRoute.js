@@ -23,7 +23,7 @@ router.get("/shopify", (req, res) => {
   }
 });
 
-router.post("/install", verifySHA256, ShopifyController.install);
+router.get("/install", verifySHA256, ShopifyController.install);
 
 router.get("/shopify/callback", ShopifyController.handleAuth); //we got the token for dumb client store: shpua_9dd90273c982021d4c9bed11b7bc6e6c
 // new updated token with customer fields --> shpua_9dd90273c982021d4c9bed11b7bc6e6c

@@ -103,7 +103,7 @@ export class ShopifyController {
   }
 
   static async install(req, res) {
-    const { shop, timestamp } = req.body;
+    const { shop, timestamp } = req.query;
 
     if (!shop || !timestamp) {
       return res.status(400).send("Missing required parameters.");

@@ -24,6 +24,8 @@ import profitabilityRoutes from "./routes/profitRoute.js";
 import retentionRoutes from "./routes/retentionRoutes.js";
 import salesRoutes from "./routes/salesRoutes.js";
 import shopifyRouter from "./routes/shopifyRoute.js";
+import TikTokAdsRoute from './routes/tiktokAdsRoute.js';
+import TikTokOAuthRoute from './routes/tiktokOAuthRoute.js';
 import { ShopifyService } from "./services/ShopifyService.js";
 
 /* CONFIGURATIONS */
@@ -89,6 +91,8 @@ app.use("/api", productRoutes);
 app.use("/api", InventoryRoutes);
 app.use("/api", profitabilityRoutes);
 app.use("/api", gptRoutes);
+app.use('/api', TikTokAdsRoute);
+app.use('/api/tiktok', TikTokOAuthRoute);
 app.use("/webhooks", dataDeletionRoute);
 
 /* DATABASE CONNECTION AND SERVER SETUP */
