@@ -10,11 +10,8 @@ export class ShopifyController {
     const userId = state.split("-")[0]; //Arham1: state me ab userId nhi milay gi
     const stateCookie = req.cookies.state;
 
-    if (state !== stateCookie) {
-      return res.status(403).send("Request origin cannot be verified");
-    }
 
-    if (shop && hmac && code) {
+    if (shop && code) {
       try {
         const accessToken = await ShopifyService.getAccessToken(shop, code);
         console.log(shop, hmac, code);
