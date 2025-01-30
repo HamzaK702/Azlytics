@@ -1,12 +1,13 @@
 // routes/gptRoutes.js
 import express from 'express';
-import { generateCompletion, streamingChat } from '../services/gptService.js';
+import { generateCompletion, streamingChat, middlewareChat } from '../services/gptService.js';
 
 const router = express.Router();
 
 router.post('/generate', async (req, res) => {
     const { prompt } = req.body;
-   
+    const { shopId } = req.query;
+
     if (!prompt) {
         return res.status(400).json({ error: 'Prompt is required' });
     }
@@ -15,7 +16,7 @@ router.post('/generate', async (req, res) => {
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.setHeader('Transfer-Encoding', 'chunked');
 
-        const stream = await streamingChat(prompt);
+        const stream = await middlewareChat(prompt, shopId);
 
         // Pipe the stream directly to the response
         stream.pipe(res);
@@ -24,7 +25,6 @@ router.post('/generate', async (req, res) => {
         stream.on('end', () => {
             res.end();
         });
-
 
     } catch (error) {
         console.error('Error in GPT route:', error.message);
