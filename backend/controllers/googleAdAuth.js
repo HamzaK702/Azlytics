@@ -33,6 +33,21 @@ export const handleGoogleAuthCallback = (req, res) => {
     }
     console.log("Access token and other details:", token);
     const userId = decodeURIComponent(state);
+    let refresh_token = token.refresh_token;
+
+    // check if we get refresh token in api will update in db otherwise fetch it from DB
+    if (refresh_token) {
+      await UserAdAccount.findOneAndUpdate(
+        { userId: userId }, // Corrected query object
+        { googleAdRefreshToken: refresh_token }, // Updating the correct field
+        { upsert: true, new: true } // Ensure update or insert
+      );
+    } else {
+      const googleRefreshToken = await UserAdAccount.findOne({
+        userId: userId,
+      });
+      refresh_token = googleRefreshToken?.googleAdRefreshToken;
+    }
 
     let customers;
     try {
@@ -41,7 +56,7 @@ export const handleGoogleAuthCallback = (req, res) => {
       customers?.resourceNames?.forEach((c) => {
         const customerId = c.replace("customers/", ""); // "customers/" remove
 
-        getCustomerCampaignInsights(customerId, token?.refresh_token, userId);
+        getCustomerCampaignInsights(customerId, refresh_token, userId);
       });
     } catch (error) {
       res.status(500).json({

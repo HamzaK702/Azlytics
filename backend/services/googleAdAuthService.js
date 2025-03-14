@@ -24,7 +24,7 @@ export const getAuthUrl = (userId) => {
     access_type: "offline",
     scope: "https://www.googleapis.com/auth/adwords",
     state: state, // Add userId in the state parameter
-    prompt: "consent",
+    // prompt: "consent", every time gives refresh token but ask for consent too
   });
 };
 
@@ -65,13 +65,6 @@ export const getCustomerCampaignInsights = async (
   userId
 ) => {
   try {
-    console.log(
-      "🚀 ~ getCustomerCampaignInsights ~ customerId, refresh_token:",
-      customerId,
-      refresh_token,
-      userId
-    );
-
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
