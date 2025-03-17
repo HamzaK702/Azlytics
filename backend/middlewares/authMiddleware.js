@@ -1,18 +1,27 @@
-import authService from '../services/authService.js';
+import authService from "../services/authService.js";
 
 const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
-    return res.status(401).json({ message: 'No token provided' });
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "No token provided" });
   }
 
+  const token = authHeader.split(" ")[1];
+
   try {
+    // Authenticate and decode token using your service
     const decoded = authService.authenticate(token);
-    req.user = decoded;
+
+    // Extract userShopId and attach to request
+    req.userShopId = decoded.userShopId;
+    console.log("🚀 ~ authMiddleware ~ decoded.userShopId:", req.userShopId);
+    req.user = decoded; // Optional: in case you need full decoded data elsewhere
+
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Unauthorized' });
+    console.error("Token verification failed:", error.message);
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };
 

@@ -33,7 +33,11 @@ const registerFirebaseUser = async (userData, userShopId) => {
 
   // Generate a JWT token
   const token = jwt.sign(
-    { id: newUser._id, role: newUser.role },
+    {
+      id: newUser._id,
+      role: newUser.role,
+      userShopId: "66bb6a53b5a7c223aee7f532",
+    },
     process.env.JWT_SECRET,
     { expiresIn: "1d" }
   );
@@ -50,7 +54,7 @@ const loginFirebaseUser = async (uid) => {
   }
 
   const token = jwt.sign(
-    { id: user._id, role: user.role },
+    { id: user._id, role: user.role, userShopId: "66bb6a53b5a7c223aee7f532" },
     process.env.JWT_SECRET,
     {
       expiresIn: "1d", // Set token expiration to 1 day

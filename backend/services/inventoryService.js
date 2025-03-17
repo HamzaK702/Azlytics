@@ -1,12 +1,16 @@
 import Order from "../models/BulkTables/BulkOrder/order.js";
+import mongoose from "mongoose";
 
 export const getInventory = async (
   filter,
   customStartDate,
   customEndDate,
-  groupBy
+  groupBy,
+  userShopId
 ) => {
   try {
+    console.log("userShopid in the inventory service", userShopId);
+
     const now = new Date();
     let startDate;
     let endDate;
@@ -101,6 +105,7 @@ export const getInventory = async (
     const pipeline = [
       {
         $match: {
+          // userShopId: mongoose.Types.ObjectId(userShopId), // if ObjectId
           createdAt: {
             $gte: new Date(startDateISO),
             $lte: new Date(endDateISO),
@@ -183,11 +188,18 @@ function getWeekNumber(date) {
   return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
 }
 
-export const getInventoryTableData = async () => {
+export const getInventoryTableData = async (userShopIdLocale) => {
   try {
+    console.log("🚀 ~ getInventoryTableData ~ userShopId:", userShopIdLocale);
     const now = new Date();
 
     const pipeline = [
+      // chnanged here
+      {
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopIdLocale),
+        },
+      },
       {
         $unwind: "$lineItems",
       },
@@ -264,17 +276,18 @@ export const getInventoryTableData = async () => {
       }
 
       return {
-        product: item.productTitle,
-        status: item.status,
-        inventory: item.inventory,
-        salesChannels: item.salesChannels,
-        markets: item.markets,
-        category: item.category || "N/A",
-        type: item.type || "N/A",
-        vendor: item.vendor || "N/A",
-        noOfDays: noOfDays.toFixed(2),
-        endingDate: endingDate.toISOString().split("T")[0],
-        health: health,
+        // product: item.productTitle,
+        // status: item.status,
+        // inventory: item.inventory,
+        // salesChannels: item.salesChannels,
+        // markets: item.markets,
+        // category: item.category || "N/A",
+        // type: item.type || "N/A",
+        // vendor: item.vendor || "N/A",
+        // noOfDays: noOfDays.toFixed(2),
+        // endingDate: endingDate.toISOString().split("T")[0],
+        // health: health,
+        data,
       };
     });
 

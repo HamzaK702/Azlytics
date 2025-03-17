@@ -9,12 +9,14 @@ export const fetchInventory = async (req, res) => {
     const customStartDate = req.query.customStartDate;
     const customEndDate = req.query.customEndDate;
     const groupBy = req.query.groupBy;
+    const userShopId = req.userShopId;
 
     const ordersTrendData = await getInventory(
       filter,
       customStartDate,
       customEndDate,
-      groupBy
+      groupBy,
+      userShopId
     );
 
     res.json(ordersTrendData);
@@ -26,7 +28,12 @@ export const fetchInventory = async (req, res) => {
 
 export const fetchInventoryTableData = async (req, res) => {
   try {
-    const tableData = await getInventoryTableData();
+    const userShopId = req.userShopId;
+    console.log(
+      "🚀 ~ fetchInventoryTableDataController ~ userShopId:",
+      userShopId
+    );
+    const tableData = await getInventoryTableData(userShopId);
     res.json(tableData);
   } catch (error) {
     console.error("Error fetching inventory table data:", error);

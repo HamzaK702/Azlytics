@@ -3,9 +3,10 @@ import {
   fetchInventory,
   fetchInventoryTableData,
 } from "../controllers/inventoryController.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
 router.get("/inventory", fetchInventory);
-router.get("/inventory/table", fetchInventoryTableData);
+router.get("/inventory/table", authMiddleware, fetchInventoryTableData);
 export default router;
