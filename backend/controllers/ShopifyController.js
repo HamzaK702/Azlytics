@@ -10,7 +10,6 @@ export class ShopifyController {
     const userId = state.split("-")[0]; //Arham1: state me ab userId nhi milay gi
     const stateCookie = req.cookies.state;
 
-
     if (shop && code) {
       try {
         const accessToken = await ShopifyService.getAccessToken(shop, code);

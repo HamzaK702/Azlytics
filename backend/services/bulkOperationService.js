@@ -1,10 +1,9 @@
-
-import fetch from 'node-fetch';
+import fetch from "node-fetch";
 
 export class BulkOperationService {
-    static async runBulkOperation(shop, token, query) {
-        const url = `https://${shop}/admin/api/2023-04/graphql.json`;
-        const mutation = `
+  static async runBulkOperation(shop, token, query) {
+    const url = `https://${shop}/admin/api/2023-04/graphql.json`;
+    const mutation = `
             mutation bulkOperationRunQuery($query: String!) {
                 bulkOperationRunQuery(query: $query) {
                     bulkOperation {
@@ -24,31 +23,31 @@ export class BulkOperationService {
                 }
             }
         `;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Shopify-Access-Token': token
-            },
-            body: JSON.stringify({
-                query: mutation,
-                variables: { query }
-            })
-        });
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.indexOf('application/json') !== -1) {
-            const data = await response.json();
-            console.log(data);
-            return data;
-        } else {
-            const text = await response.text();
-            console.error('Non-JSON response received:', text);
-            throw new Error('Unexpected response format');
-        }
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: { query },
+      }),
+    });
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      const data = await response.json();
+      console.log(data);
+      return data;
+    } else {
+      const text = await response.text();
+      console.error("Non-JSON response received:", text);
+      throw new Error("Unexpected response format");
     }
+  }
 
-    static async pollBulkOperationStatus(shop, token, bulkOperationId) {
-        const query = `
+  static async pollBulkOperationStatus(shop, token, bulkOperationId) {
+    const query = `
             query {
                 node(id: "${bulkOperationId}") {
                     ... on BulkOperation {
@@ -65,46 +64,52 @@ export class BulkOperationService {
             }
         `;
 
-        const url = `https://${shop}/admin/api/2023-04/graphql.json`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Shopify-Access-Token': token
-            },
-            body: JSON.stringify({ query })
-        });
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.indexOf('application/json') !== -1) {
-            const data = await response.json();
-            console.log('Full response from Shopify API:', data);
-            if (!data || !data.data || !data.data.node) {
-               
-                throw new Error('Invalid response from Shopify API');
-            }
-            return data.data.node;
-        } else {
-            const text = await response.text();
-            console.error('Non-JSON response received:', text);
-            throw new Error('Unexpected response format');
-        }
+    const url = `https://${shop}/admin/api/2023-04/graphql.json`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({ query }),
+    });
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      const data = await response.json();
+      console.log("Full response from Shopify API:", data);
+      if (!data || !data.data || !data.data.node) {
+        throw new Error("Invalid response from Shopify API");
+      }
+      return data.data.node;
+    } else {
+      const text = await response.text();
+      console.error("Non-JSON response received:", text);
+      throw new Error("Unexpected response format");
     }
+  }
 
-    static async fetchBulkOperationResults(url) {
-        const response = await fetch(url);
-        const contentType = response.headers.get('content-type');
-        if (contentType && (contentType.indexOf('application/json') !== -1 || contentType.indexOf('text/plain') !== -1)) {
-            const data = await response.text(); // JSONL is plain text
-            return data.split('\n').filter(line => line).map(line => JSON.parse(line));
-        } else {
-            const text = await response.text();
-            console.error('Non-JSON response received:', text);
-            throw new Error('Unexpected response format');
-        }
+  static async fetchBulkOperationResults(url) {
+    const response = await fetch(url);
+    const contentType = response.headers.get("content-type");
+    if (
+      contentType &&
+      (contentType.indexOf("application/json") !== -1 ||
+        contentType.indexOf("text/plain") !== -1)
+    ) {
+      const data = await response.text(); // JSONL is plain text
+      return data
+        .split("\n")
+        .filter((line) => line)
+        .map((line) => JSON.parse(line));
+    } else {
+      const text = await response.text();
+      console.error("Non-JSON response received:", text);
+      throw new Error("Unexpected response format");
     }
+  }
 
-    static get customerQuery() {
-        return `
+  static get customerQuery() {
+    return `
             {
                 customers {
                     edges {
@@ -194,10 +199,10 @@ export class BulkOperationService {
                 }
             }
         `;
-    }
+  }
 
-    static get productQuery() {
-        return `
+  static get productQuery() {
+    return `
             {
                 products {
                     edges {
@@ -239,7 +244,7 @@ export class BulkOperationService {
                                             inventoryLevels {
                                                 edges {
                                                     node {
-                                                        available
+                                                    
                                                         location {
                                                             id
                                                             name
@@ -273,10 +278,10 @@ export class BulkOperationService {
                 }
             }
         `;
-    }
+  }
 
-    static get orderQuery() {
-        return `
+  static get orderQuery() {
+    return `
             {
                 orders {
                     edges {
@@ -314,7 +319,7 @@ export class BulkOperationService {
                             }
                             customer {
                                 id
-                                acceptsMarketing
+                        
                                 email
                                 firstName
                                 lastName
@@ -422,5 +427,5 @@ export class BulkOperationService {
                 }
             }
         `;
-    }
+  }
 }
