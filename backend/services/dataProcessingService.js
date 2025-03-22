@@ -5,7 +5,12 @@ import Product from "../models/BulkTables/BulkProduct/product.js";
 import UserShop from "../models/userShopModel.js";
 import { ShopifyService } from "./ShopifyService.js";
 
-export const saveCustomerData = async (bulkData, userShopId, shopName) => {
+export const saveCustomerData = async (
+  bulkData,
+  userShopId,
+  shopName,
+  shopToken
+) => {
   try {
     const userShop = await UserShop.findOne({ shop: shopName });
     if (!userShop) {
@@ -23,12 +28,14 @@ export const saveCustomerData = async (bulkData, userShopId, shopName) => {
             ...item,
             userShopId: userShop?._id,
             shopName,
+            shopToken,
           });
         } else {
           // If customer exists, update it
           Object.assign(customer, item);
           customer.userShopId = userShop?._id;
           customer.shopName = shopName;
+          customer.shopToken = shopToken;
         }
 
         // Save the customer
@@ -71,7 +78,12 @@ export const saveCustomerData = async (bulkData, userShopId, shopName) => {
   }
 };
 
-export const saveOrderData = async (bulkData, userShopId, shopName) => {
+export const saveOrderData = async (
+  bulkData,
+  userShopId,
+  shopName,
+  shopToken
+) => {
   try {
     const userShop = await UserShop.findOne({ shop: shopName });
     if (!userShop) {
@@ -89,12 +101,18 @@ export const saveOrderData = async (bulkData, userShopId, shopName) => {
 
         // If order doesn't exist, create a new one
         if (!order) {
-          order = new Order({ ...item, userShopId, shopName });
+          order = new Order({
+            ...item,
+            userShopId,
+            shopName,
+            shopToken,
+          });
         } else {
           // If order exists, update it
           Object.assign(order, item);
           order.userShopId = userShop._id;
           order.shopName = shopName;
+          order.shopToken = shopToken;
         }
 
         // Save the order
@@ -163,7 +181,12 @@ export const saveOrderData = async (bulkData, userShopId, shopName) => {
   }
 };
 
-export const saveProductData = async (bulkData, userShopId, shopName) => {
+export const saveProductData = async (
+  bulkData,
+  userShopId,
+  shopName,
+  shopToken
+) => {
   try {
     const userShop = await UserShop.findOne({ shop: shopName });
     if (!userShop) {
@@ -183,6 +206,7 @@ export const saveProductData = async (bulkData, userShopId, shopName) => {
             ...item,
             userShopId: userShop?._id,
             shopName,
+            shopToken,
           });
         } else {
           // If product exists, update it
@@ -192,6 +216,7 @@ export const saveProductData = async (bulkData, userShopId, shopName) => {
             product.userShopId = userShop?._id;
           }
           product.shopName = shopName;
+          product.shopToken = shopToken;
         }
 
         // Save the product
@@ -214,6 +239,7 @@ export const saveProductData = async (bulkData, userShopId, shopName) => {
         }
       }
     }
+
     console.log("Product data saved successfully");
   } catch (error) {
     console.error("Error saving product data:", error.message);

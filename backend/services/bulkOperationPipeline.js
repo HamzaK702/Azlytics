@@ -38,7 +38,7 @@ const checkStatusAndLogResults = async (
       const results = await BulkOperationService.fetchBulkOperationResults(
         status.url
       );
-      await saveDataCallback(results, userShopId, shop);
+      await saveDataCallback(results, userShopId, shop, token);
       break; // Exit loop after successful fetch and save
     } else if (status.status === "FAILED") {
       console.error(
