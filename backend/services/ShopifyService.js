@@ -276,4 +276,38 @@ export class ShopifyService {
         console.log(products);
         return products;
     }
+
+    static async getShippingRates(shop, token, orderId) {
+      const query = `
+               {
+                  order(id: "${orderId}") {
+                    shippingLine {
+                      title
+                      price
+                      shippingRateHandle
+                      discountAllocations {
+                        allocatedAmount {
+                          amount
+                          currencyCode
+                        }
+                        discountApplication {
+                          allocationMethod
+                          targetSelection
+                          targetType
+                          value {
+                            __typename
+                            ... on MoneyV2 {
+                              amount
+                              currencyCode
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+      `;
+      const result = await this.fetchGraphQL(shop, token, query);
+      return result.data.order.shippingLine;
+  }
 }

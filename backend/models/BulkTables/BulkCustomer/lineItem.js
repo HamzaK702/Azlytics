@@ -7,6 +7,8 @@ const lineItemSchema = new Schema({
   id: String,
   title: String,
   quantity: Number,
+  price: String,
+  costPrice: String,
   product: productSchema,
   __parentId: String,
 });
