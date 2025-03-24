@@ -1,8 +1,6 @@
 
 import axios from 'axios';
 import crypto from 'crypto';
-import moment from 'moment';
-import metaAdInsight  from '../models/metaAdInsightModel.js';
 
 export const getFacebookLoginUrl = (userId) => {
     const clientId = '479080541428156';
@@ -43,47 +41,4 @@ export const getAdInsights = async (adAccountId, accessToken) => {
         }
     });
     return response.data;
-};
-
-
-export const getDailyAdInsights = async (adAccountId, accessToken) => {
-    const insights = [];
-    const today = moment().startOf('day');
-    const last30Days = Array.from({ length: 30 }, (_, i) => today.clone().subtract(i, 'days').format('YYYY-MM-DD'));
-
-    for (const date of last30Days) {
-        const url = `https://graph.facebook.com/v12.0/act_${adAccountId}/insights`;
-        const response = await axios.get(url, {
-            params: {
-                access_token: accessToken,
-                fields: 'campaign_name, impressions,clicks, spend',
-                time_range: {
-                    since: date,
-                    until: date
-                }
-            }
-        });
-        insights.push({ date, data: response.data.data });
-    }
-
-    return insights;
-};
-
-
-
-export const saveDailyInsights = async (userId, adAccountId, insightsData) => {
-  for (const entry of insightsData) {
-    console.log(entry)
-    await metaAdInsight.findOneAndUpdate(
-      { userId, adAccountId, date: entry.date },
-      {
-        userId,
-        adAccountId,
-        date: entry.date,
-        insights: entry.data,
-        createdAt: new Date(entry.date)
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-  }
 };

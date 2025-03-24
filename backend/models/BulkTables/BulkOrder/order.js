@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
-import addressSchema from "../BulkCustomer/address.js";
-import lineItemSchema from "../BulkCustomer/lineItem.js";
+import mongoose from 'mongoose';
+import addressSchema from '../BulkCustomer/address.js';
+import lineItemSchema from '../BulkCustomer/lineItem.js';
 const { Schema } = mongoose;
 
 const orderSchema = new Schema({
@@ -34,15 +34,7 @@ const orderSchema = new Schema({
   transactions: [Schema.Types.Mixed],
   updatedAt: Date,
   lineItems: [lineItemSchema],
-  userShopId: { type: Schema.Types.ObjectId, ref: "UserShop" },
-  shopName: String,
-
-  totalCost: { type: String, default: "0" }, // Existing or ensure it's present
-  shippingCost: { type: String, default: "0" }, // Add if not present
-  transactionFee: { type: String, default: "0" }, // Add if not present
-  taxes: { type: String, default: "0" }, // Add if not present
-  shopToken: String,
 });
 
-const Order = mongoose.model("Order", orderSchema);
+const Order = mongoose.model('Order', orderSchema);
 export default Order;

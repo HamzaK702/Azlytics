@@ -1,6 +1,7 @@
-import mongoose from "mongoose";
-import addressSchema from "./address.js";
-import orderSchema from "./order.js";
+
+import mongoose from 'mongoose';
+import addressSchema from './address.js';
+import orderSchema from './order.js';
 const { Schema } = mongoose;
 
 const customerSchema = new Schema({
@@ -21,10 +22,7 @@ const customerSchema = new Schema({
   numberOfOrders: String,
   verifiedEmail: Boolean,
   orders: [orderSchema],
-  userShopId: { type: Schema.Types.ObjectId, ref: "UserShop" },
-  shopName: String,
-  shopToken: String,
 });
 
-const Customer = mongoose.model("Customer", customerSchema);
+const Customer = mongoose.model('Customer', customerSchema);
 export default Customer;

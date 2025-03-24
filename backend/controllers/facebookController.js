@@ -1,14 +1,4 @@
-import { 
-  getFacebookLoginUrl, 
-  getAccessToken, 
-  getAdAccounts, 
-  getAdInsights,
-  getDailyAdInsights,
-  saveDailyInsights
-} from '../services/facebookService.js';
-import UserAdAccount from '../models/BulkTables/userAdAccountModel.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { getFacebookLoginUrl, getAccessToken, getAdAccounts } from '../services/facebookService.js';
 
 export const redirectToFacebook = (req, res) => {
     const userId = req.query.userId
@@ -26,43 +16,17 @@ export const handleFacebookCallback = async (req, res) => {
         if(!accessToken || !adAccounts){
             console.log("Something wrong with accessToken or adAccounts")
         }
-        try {
-          const adAccountsData = adAccounts.data?.map(account => ({
-            accountId: account.account_id,
-            accountName: account.id || '',
-          })) || null;
-          
-          const updateData = {
-            metaAccessToken: accessToken,
-            metaAdAccounts: adAccountsData || null,
-          };
-          
-          const userAdAccount = await UserAdAccount.findOneAndUpdate(
-            { userId },
-            updateData,
-            { new: true, upsert: true, setDefaultsOnInsert: true }
-          );
-           
-          for (const entry of adAccounts.data) {
-            const last30DaysInsights = await getDailyAdInsights(entry.account_id, accessToken);
-            if (last30DaysInsights) {
-                await saveDailyInsights(userId, entry.account_id, last30DaysInsights);
-            }
-          }
-          
-          return res.redirect(`${process.env.FRONTEND_URL}/dashboard?metaAds=true`); 
 
-            // res.json({
-            //   message: 'Facebook authentication successful',
-            //   userId,
-            //   accessToken,
-            //   adAccounts,
-            //   userAdAccount
-            // });
-          } catch (error) {
-            console.error('Error storing Facebook token:', error);
-            res.status(500).send('Error storing Facebook token');
-          }
+        //store the access token adAccounts against the userId in a new table userAdAccounts
+        
+        //accessToken will go in a field called metaAccesstoken
+        //adAccounts will go in an array schema called metaAdAccounts
+        res.json({
+            message: 'Facebook authentication successful',
+            userId,
+            accessToken,
+            adAccounts
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
