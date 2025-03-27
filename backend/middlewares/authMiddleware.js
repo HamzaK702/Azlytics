@@ -10,13 +10,11 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    // Authenticate and decode token using your service
     const decoded = authService.authenticate(token);
 
-    // Extract userShopId and attach to request
-    req.userShopId = decoded.userShopId;
+    req.userShopId = decoded.userShopId; //ARHM1: We take the userShopId from here
     console.log("🚀 ~ authMiddleware ~ decoded.userShopId:", req.userShopId);
-    req.user = decoded; // Optional: in case you need full decoded data elsewhere
+    req.user = decoded; 
 
     next();
   } catch (error) {

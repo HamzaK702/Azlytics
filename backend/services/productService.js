@@ -1,9 +1,10 @@
 import Product from "../models/BulkTables/BulkProduct/product.js";
 
-export const searchProductTitles = async (query) => {
+export const searchProductTitles = async (query, userShopId) => {
     try {
       const products = await Product.find({
-        title: { $regex: query, $options: 'i' } // Case-insensitive search
+        title: { $regex: query, $options: 'i' },
+        userShopId: userShopId
       }).select('title id'); 
   
       return products;
@@ -12,9 +13,12 @@ export const searchProductTitles = async (query) => {
     }
   };
 
-  export const getProductImageByTitle = async (title) => {
+  export const getProductImageByTitle = async (title, userShopId) => {
     try {
-      const product = await Product.findOne({ title }).select('title image');
+      const product = await Product.findOne({ 
+        title, 
+        userShopId 
+      }).select('title image');
   
       if (!product) {
         throw new Error('Product not found');
@@ -32,13 +36,16 @@ export const searchProductTitles = async (query) => {
 
 
 
-  export const addOrUpdateCostPrice = async (shopifyProductId, costPrice) => {
+  export const addOrUpdateCostPrice = async (shopifyProductId, costPrice, userShopId) => {
     try {
       console.log(`Received productId: ${shopifyProductId}, costPrice: ${costPrice}`);
   
       // Find the product by Shopify product ID and update the costPrice field
       const product = await Product.findOneAndUpdate(
-        { id: shopifyProductId },
+        { 
+          id: shopifyProductId, 
+          userShopId
+        },
         { costPrice: costPrice.toString() },
         { new: true, runValidators: true }
       );
