@@ -25,7 +25,11 @@ const registerFirebaseUser = async (req, res) => {
 const loginFirebaseUser = async (req, res) => {
   try {
     const { uid } = req.body;
-    const { user, token } = await authService.loginFirebaseUser(uid);
+    const { userShopId } = req.query;
+    const { user, token } = await authService.loginFirebaseUser(
+      uid,
+      userShopId
+    );
     res.status(200).json({ user, token });
   } catch (error) {
     res.status(401).json({ message: error.message });

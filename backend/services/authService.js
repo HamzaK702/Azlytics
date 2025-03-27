@@ -1,11 +1,11 @@
 // Import necessary modules
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import UserShop from "../models/userShopModel.js";
 
 // Function to store user data in the database and return an access token
 const registerFirebaseUser = async (userData, userShopId) => {
-  console.log("🚀 ~ registerFirebaseUser ~ userShopId:", userShopId);
   const { name, email, uid } = userData;
 
   // Check if the user already exists
@@ -36,7 +36,7 @@ const registerFirebaseUser = async (userData, userShopId) => {
     {
       id: newUser._id,
       role: newUser.role,
-      userShopId: "66bb6a53b5a7c223aee7f532",
+      userShopId,
     },
     process.env.JWT_SECRET,
     { expiresIn: "1d" }
@@ -46,15 +46,27 @@ const registerFirebaseUser = async (userData, userShopId) => {
 };
 
 // Function to log in a Firebase-authenticated user and return an access token
-const loginFirebaseUser = async (uid) => {
+const loginFirebaseUser = async (uid, userShopIdFromParams) => {
   const user = await User.findOne({ uid });
 
   if (!user) {
     throw new Error("User not found");
   }
 
+  let userShopId;
+  if (userShopIdFromParams) {
+    const userShopIdFromParamsMongo = new mongoose.Types.ObjectId(
+      userShopIdFromParams
+    );
+    userShopId = userShopIdFromParamsMongo;
+  } else {
+    const shop = await UserShop.findOne({ userId: user?._id });
+    if (shop) {
+      userShopId = shop?._id;
+    }
+  }
   const token = jwt.sign(
-    { id: user._id, role: user.role, userShopId: "66bb6a53b5a7c223aee7f532" },
+    { id: user._id, role: user.role, userShopId },
     process.env.JWT_SECRET,
     {
       expiresIn: "1d", // Set token expiration to 1 day
