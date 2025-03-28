@@ -11,10 +11,8 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = authService.authenticate(token);
-
-    req.userShopId = decoded.userShopId; //ARHM1: We take the userShopId from here
-    console.log("🚀 ~ authMiddleware ~ decoded.userShopId:", req.userShopId);
-    req.user = decoded; 
+    req.user = decoded;
+    req.userShopId = decoded?.userShopId; //ARHM1: We take the userShopId from here
 
     next();
   } catch (error) {

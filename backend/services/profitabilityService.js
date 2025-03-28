@@ -1,34 +1,34 @@
 // services/profitabilityService.js
 
-import Order from '../models/BulkTables/BulkOrder/order.js';
-import Product from '../models/BulkTables/BulkProduct/product.js';
-import OverheadCost from '../models/overheadCostModel.js';
-import MetaAdInsights from '../models/metaAdInsightModel.js';
-import moment from 'moment';
+import moment from "moment";
+import Order from "../models/BulkTables/BulkOrder/order.js";
+import MetaAdInsights from "../models/metaAdInsightModel.js";
+import OverheadCost from "../models/overheadCostModel.js";
 
 // Helper functions for date ranges and periods
+import mongoose from "mongoose";
 import {
-  getDateRange,
   generateDateArray,
-  generateWeeklyPeriods,
   generateMonthArray,
-} from './dateHelpers.js'; // Adjust the import path accordingly
+  generateWeeklyPeriods,
+  getDateRange,
+} from "./dateHelpers.js"; // Adjust the import path accordingly
 
-const calculateProfitTrends = async (filter, format) => {
+const calculateProfitTrends = async (filter, format, userShopId) => {
   try {
     // Get the date range based on the filter
     const { startDate, endDate } = getDateRange(filter);
 
     // Generate periods based on the format
     let periods = [];
-    if (format === 'day') {
+    if (format === "day") {
       periods = generateDateArray(startDate, endDate);
-    } else if (format === 'week') {
+    } else if (format === "week") {
       periods = generateWeeklyPeriods(startDate, endDate);
-    } else if (format === 'month') {
+    } else if (format === "month") {
       periods = generateMonthArray(startDate, endDate);
     } else {
-      throw new Error('Invalid format specified');
+      throw new Error("Invalid format specified");
     }
 
     // Convert periods to string keys for mapping
@@ -48,7 +48,8 @@ const calculateProfitTrends = async (filter, format) => {
     const grossProfits = await calculateGrossProfitPerPeriod(
       startDate,
       endDate,
-      format
+      format,
+      userShopId
     );
     grossProfits.forEach((item) => {
       if (dataMap.has(item._id)) {
@@ -59,10 +60,20 @@ const calculateProfitTrends = async (filter, format) => {
     // Fetch and map other cost components per period
     const marketingCosts = await getMarketingCosts(startDate, endDate, format);
     const overheadCosts = await getOverheadCosts(startDate, endDate, format);
-    const shippingCosts = await getShippingCosts(startDate, endDate, format);
-    const transactionCosts = await getTransactionCosts(startDate, endDate, format);
-    const refunds = await getRefunds(startDate, endDate, format);
-    const taxes = await getTaxes(startDate, endDate, format);
+    const shippingCosts = await getShippingCosts(
+      startDate,
+      endDate,
+      format,
+      userShopId
+    );
+    const transactionCosts = await getTransactionCosts(
+      startDate,
+      endDate,
+      format,
+      userShopId
+    );
+    const refunds = await getRefunds(startDate, endDate, format, userShopId);
+    const taxes = await getTaxes(startDate, endDate, format, userShopId);
 
     // Calculate net margin per period
     dataMap.forEach((value, key) => {
@@ -92,51 +103,56 @@ const calculateProfitTrends = async (filter, format) => {
 
     return result;
   } catch (error) {
-    console.error('Error in calculateProfitTrends:', error.message);
+    console.error("Error in calculateProfitTrends:", error.message);
     throw error;
   }
 };
 
 const formatPeriodKey = (date, format) => {
-  if (format === 'day') {
-    return moment(date).format('YYYY-MM-DD');
-  } else if (format === 'week') {
-    return moment(date).startOf('isoWeek').format('YYYY-MM-DD');
-  } else if (format === 'month') {
-    return moment(date).format('YYYY-MM');
+  if (format === "day") {
+    return moment(date).format("YYYY-MM-DD");
+  } else if (format === "week") {
+    return moment(date).startOf("isoWeek").format("YYYY-MM-DD");
+  } else if (format === "month") {
+    return moment(date).format("YYYY-MM");
   }
 };
 
 const formatPeriodLabel = (periodKey, format) => {
-  if (format === 'day') {
-    return moment(periodKey, 'YYYY-MM-DD').format('D MMM');
-  } else if (format === 'week') {
-    return moment(periodKey, 'YYYY-MM-DD').format('D MMM');
-  } else if (format === 'month') {
-    return moment(periodKey, 'YYYY-MM').format('MMM YYYY');
+  if (format === "day") {
+    return moment(periodKey, "YYYY-MM-DD").format("D MMM");
+  } else if (format === "week") {
+    return moment(periodKey, "YYYY-MM-DD").format("D MMM");
+  } else if (format === "month") {
+    return moment(periodKey, "YYYY-MM").format("MMM YYYY");
   }
 };
 
 // Helper function to calculate gross profit per period
-const calculateGrossProfitPerPeriod = async (startDate, endDate, format) => {
+const calculateGrossProfitPerPeriod = async (
+  startDate,
+  endDate,
+  format,
+  userShopId
+) => {
   let groupFormat;
-  if (format === 'day') {
-    groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-  } else if (format === 'week') {
+  if (format === "day") {
+    groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: '$createdAt' },
-            isoWeek: { $isoWeek: '$createdAt' },
+            isoWeekYear: { $isoWeekYear: "$createdAt" },
+            isoWeek: { $isoWeek: "$createdAt" },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
-    groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+  } else if (format === "month") {
+    groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
   }
 
   const grossProfits = await Order.aggregate([
@@ -146,28 +162,29 @@ const calculateGrossProfitPerPeriod = async (startDate, endDate, format) => {
           $gte: startDate,
           $lte: endDate,
         },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
-      $unwind: '$lineItems',
+      $unwind: "$lineItems",
     },
     {
       $lookup: {
-        from: 'products',
-        localField: 'lineItems.product.id',
-        foreignField: 'id',
-        as: 'productDetails',
+        from: "products",
+        localField: "lineItems.product.id",
+        foreignField: "id",
+        as: "productDetails",
       },
     },
     {
-      $unwind: '$productDetails',
+      $unwind: "$productDetails",
     },
     {
       $project: {
         createdAt: 1,
-        sellingPrice: { $toDouble: '$lineItems.price' },
-        costPrice: { $toDouble: '$productDetails.costPrice' },
-        quantity: '$lineItems.quantity',
+        sellingPrice: { $toDouble: "$lineItems.price" },
+        costPrice: { $toDouble: "$productDetails.costPrice" },
+        quantity: "$lineItems.quantity",
       },
     },
     {
@@ -177,15 +194,15 @@ const calculateGrossProfitPerPeriod = async (startDate, endDate, format) => {
     },
     {
       $group: {
-        _id: '$period',
-        totalSales: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
-        totalCOGS: { $sum: { $multiply: ['$costPrice', '$quantity'] } },
+        _id: "$period",
+        totalSales: { $sum: { $multiply: ["$sellingPrice", "$quantity"] } },
+        totalCOGS: { $sum: { $multiply: ["$costPrice", "$quantity"] } },
       },
     },
     {
       $project: {
         _id: 1,
-        grossProfit: { $subtract: ['$totalSales', '$totalCOGS'] },
+        grossProfit: { $subtract: ["$totalSales", "$totalCOGS"] },
       },
     },
   ]);
@@ -196,26 +213,26 @@ const calculateGrossProfitPerPeriod = async (startDate, endDate, format) => {
 // Helper functions to fetch other cost components per period
 const getMarketingCosts = async (startDate, endDate, format) => {
   let groupFormat;
-  if (format === 'day') {
+  if (format === "day") {
     groupFormat = {
-      $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$date' } },
+      $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$date" } },
     };
-  } else if (format === 'week') {
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: { $toDate: '$date' } },
-            isoWeek: { $isoWeek: { $toDate: '$date' } },
+            isoWeekYear: { $isoWeekYear: { $toDate: "$date" } },
+            isoWeek: { $isoWeek: { $toDate: "$date" } },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
+  } else if (format === "month") {
     groupFormat = {
-      $dateToString: { format: '%Y-%m', date: { $toDate: '$date' } },
+      $dateToString: { format: "%Y-%m", date: { $toDate: "$date" } },
     };
   }
 
@@ -223,18 +240,18 @@ const getMarketingCosts = async (startDate, endDate, format) => {
     {
       $match: {
         date: {
-          $gte: startDate.toISOString().split('T')[0],
-          $lte: endDate.toISOString().split('T')[0],
+          $gte: startDate.toISOString().split("T")[0],
+          $lte: endDate.toISOString().split("T")[0],
         },
       },
     },
     {
-      $unwind: '$insights',
+      $unwind: "$insights",
     },
     {
       $group: {
         _id: groupFormat,
-        totalMarketingCost: { $sum: { $toDouble: '$insights.spend' } },
+        totalMarketingCost: { $sum: { $toDouble: "$insights.spend" } },
       },
     },
   ]);
@@ -264,11 +281,11 @@ const getOverheadCosts = async (startDate, endDate, format) => {
         overheadCost: 1,
         period: {
           $dateToString: {
-            format: '%Y-%m',
+            format: "%Y-%m",
             date: {
               $dateFromParts: {
-                year: '$year',
-                month: '$month',
+                year: "$year",
+                month: "$month",
                 day: 1,
               },
             },
@@ -286,25 +303,25 @@ const getOverheadCosts = async (startDate, endDate, format) => {
   return overheadCosts;
 };
 
-const getShippingCosts = async (startDate, endDate, format) => {
+const getShippingCosts = async (startDate, endDate, format, userShopId) => {
   let groupFormat;
-  if (format === 'day') {
-    groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-  } else if (format === 'week') {
+  if (format === "day") {
+    groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: '$createdAt' },
-            isoWeek: { $isoWeek: '$createdAt' },
+            isoWeekYear: { $isoWeekYear: "$createdAt" },
+            isoWeek: { $isoWeek: "$createdAt" },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
-    groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+  } else if (format === "month") {
+    groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
   }
 
   const shippingData = await Order.aggregate([
@@ -314,12 +331,13 @@ const getShippingCosts = async (startDate, endDate, format) => {
           $gte: startDate,
           $lte: endDate,
         },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
       $group: {
         _id: groupFormat,
-        totalShippingCost: { $sum: { $toDouble: '$totalShippingPrice' } },
+        totalShippingCost: { $sum: { $toDouble: "$totalShippingPrice" } },
       },
     },
   ]);
@@ -332,25 +350,25 @@ const getShippingCosts = async (startDate, endDate, format) => {
   return shippingCosts;
 };
 
-const getTransactionCosts = async (startDate, endDate, format) => {
+const getTransactionCosts = async (startDate, endDate, format, userShopId) => {
   let groupFormat;
-  if (format === 'day') {
-    groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-  } else if (format === 'week') {
+  if (format === "day") {
+    groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: '$createdAt' },
-            isoWeek: { $isoWeek: '$createdAt' },
+            isoWeekYear: { $isoWeekYear: "$createdAt" },
+            isoWeek: { $isoWeek: "$createdAt" },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
-    groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+  } else if (format === "month") {
+    groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
   }
 
   const transactionData = await Order.aggregate([
@@ -360,14 +378,15 @@ const getTransactionCosts = async (startDate, endDate, format) => {
           $gte: startDate,
           $lte: endDate,
         },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
-    { $unwind: '$transactions' },
-    { $unwind: '$transactions.fees' },
+    { $unwind: "$transactions" },
+    { $unwind: "$transactions.fees" },
     {
       $group: {
         _id: groupFormat,
-        totalFees: { $sum: { $toDouble: '$transactions.fees.amount' } },
+        totalFees: { $sum: { $toDouble: "$transactions.fees.amount" } },
       },
     },
   ]);
@@ -380,25 +399,25 @@ const getTransactionCosts = async (startDate, endDate, format) => {
   return transactionCosts;
 };
 
-const getRefunds = async (startDate, endDate, format) => {
+const getRefunds = async (startDate, endDate, format, userShopId) => {
   let groupFormat;
-  if (format === 'day') {
-    groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-  } else if (format === 'week') {
+  if (format === "day") {
+    groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: '$createdAt' },
-            isoWeek: { $isoWeek: '$createdAt' },
+            isoWeekYear: { $isoWeekYear: "$createdAt" },
+            isoWeek: { $isoWeek: "$createdAt" },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
-    groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+  } else if (format === "month") {
+    groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
   }
 
   const refundData = await Order.aggregate([
@@ -408,12 +427,13 @@ const getRefunds = async (startDate, endDate, format) => {
           $gte: startDate,
           $lte: endDate,
         },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
       $group: {
         _id: groupFormat,
-        totalRefunds: { $sum: { $toDouble: '$totalRefunded' } },
+        totalRefunds: { $sum: { $toDouble: "$totalRefunded" } },
       },
     },
   ]);
@@ -426,25 +446,25 @@ const getRefunds = async (startDate, endDate, format) => {
   return refunds;
 };
 
-const getTaxes = async (startDate, endDate, format) => {
+const getTaxes = async (startDate, endDate, format, userShopId) => {
   let groupFormat;
-  if (format === 'day') {
-    groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
-  } else if (format === 'week') {
+  if (format === "day") {
+    groupFormat = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+  } else if (format === "week") {
     groupFormat = {
       $dateToString: {
-        format: '%Y-%m-%d',
+        format: "%Y-%m-%d",
         date: {
           $dateFromParts: {
-            isoWeekYear: { $isoWeekYear: '$createdAt' },
-            isoWeek: { $isoWeek: '$createdAt' },
+            isoWeekYear: { $isoWeekYear: "$createdAt" },
+            isoWeek: { $isoWeek: "$createdAt" },
             isoDayOfWeek: 1,
           },
         },
       },
     };
-  } else if (format === 'month') {
-    groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+  } else if (format === "month") {
+    groupFormat = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
   }
 
   const taxData = await Order.aggregate([
@@ -454,13 +474,14 @@ const getTaxes = async (startDate, endDate, format) => {
           $gte: startDate,
           $lte: endDate,
         },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
-    { $unwind: '$taxLines' },
+    { $unwind: "$taxLines" },
     {
       $group: {
         _id: groupFormat,
-        totalTaxes: { $sum: { $toDouble: '$taxLines.price' } },
+        totalTaxes: { $sum: { $toDouble: "$taxLines.price" } },
       },
     },
   ]);
