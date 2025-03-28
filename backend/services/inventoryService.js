@@ -105,7 +105,7 @@ export const getInventory = async (
     const pipeline = [
       {
         $match: {
-          userShopId,
+          userShopId: new mongoose.Types.ObjectId(userShopIdLocale),
           createdAt: {
             $gte: new Date(startDateISO),
             $lte: new Date(endDateISO),
