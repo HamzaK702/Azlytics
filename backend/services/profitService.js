@@ -1,69 +1,69 @@
 // services/profitService.js
 
-import Order from '../models/BulkTables/BulkOrder/order.js';
-import Product from '../models/BulkTables/BulkProduct/product.js';
+import mongoose from "mongoose";
+import Order from "../models/BulkTables/BulkOrder/order.js";
+import Product from "../models/BulkTables/BulkProduct/product.js";
+import MetaAdInsights from "../models/metaAdInsightModel.js";
 import OverheadCost from "../models/overheadCostModel.js";
-import MetaAdInsights from '../models/metaAdInsightModel.js';
-import moment from 'moment';
 
-const calculateProfitData = async () => {
+const calculateProfitData = async (userShopId) => {
   // Implement calculations for each category using your existing functions
-  const totalSales = await calculateTotalSales();
-  const cogs = await calculateCOGS();
+  const totalSales = await calculateTotalSales(userShopId);
+  const cogs = await calculateCOGS(userShopId);
   const grossProfit = totalSales - cogs;
-  const transaction = await calculateTotalFees();
-  const shippingAndHandling = await calculateTotalShippingCost();
+  const transaction = await calculateTotalFees(userShopId);
+  const shippingAndHandling = await calculateTotalShippingCost(userShopId);
   const marketing = await calculateTotalAdSpend();
-  const refunds = await calculateTotalRefunds();
+  const refunds = await calculateTotalRefunds(userShopId);
   const overhead = await getOverheadCost();
-  const taxes = await calculateTotalTaxes();
+  const taxes = await calculateTotalTaxes(userShopId);
 
   const data = [
     {
-      category: 'Total Sales',
+      category: "Total Sales",
       amount: totalSales,
       change: 12, // Placeholder for percentage change
     },
     {
-      category: 'COGS',
+      category: "COGS",
       amount: cogs,
       change: 10, // Placeholder
     },
     {
-      category: 'Gross Profit',
+      category: "Gross Profit",
       amount: grossProfit,
       change: 10, // Placeholder
     },
     {
-      category: 'Transaction',
+      category: "Transaction",
       amount: transaction,
       change: 8, // Placeholder
     },
     {
-      category: 'Shipping & Handling',
+      category: "Shipping & Handling",
       amount: shippingAndHandling,
       change: 12, // Placeholder
       charge: 80000, // Placeholder
       difference: 10000, // Placeholder
     },
     {
-      category: 'Marketing',
+      category: "Marketing",
       amount: marketing,
       change: 10, // Placeholder
     },
     {
-      category: 'Refunds',
+      category: "Refunds",
       amount: refunds,
       change: 11, // Placeholder
-      details: 'Learn More', // Placeholder
+      details: "Learn More", // Placeholder
     },
     {
-      category: 'Overhead',
+      category: "Overhead",
       amount: overhead,
       change: 10, // Placeholder
     },
     {
-      category: 'Taxes',
+      category: "Taxes",
       amount: taxes,
       change: 12, // Placeholder
     },
@@ -73,104 +73,129 @@ const calculateProfitData = async () => {
 };
 
 // Function to calculate Gross Sales
-const calculateGrossSales = async () => {
+const calculateGrossSales = async (userShopId) => {
   try {
     const grossSales = await Order.aggregate([
+      {
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopId),
+        },
+      },
       {
         $group: {
           _id: null,
           totalGrossSales: {
-            $sum: { $toDouble: '$subtotalPrice' },
+            $sum: { $toDouble: "$subtotalPrice" },
           },
         },
       },
     ]);
     return grossSales[0]?.totalGrossSales || 0;
   } catch (error) {
-    console.error('Error calculating Gross Sales:', error);
+    console.error("Error calculating Gross Sales:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Refunds
-const calculateTotalRefunds = async () => {
+const calculateTotalRefunds = async (userShopId) => {
   try {
     const refunds = await Order.aggregate([
+      {
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopId),
+        },
+      },
       {
         $group: {
           _id: null,
           totalRefunded: {
-            $sum: { $toDouble: '$totalRefunded' },
+            $sum: { $toDouble: "$totalRefunded" },
           },
         },
       },
     ]);
     return refunds[0]?.totalRefunded || 0;
   } catch (error) {
-    console.error('Error calculating total refunds:', error);
+    console.error("Error calculating total refunds:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Taxes
-const calculateTotalTaxes = async () => {
+const calculateTotalTaxes = async (userShopId) => {
   try {
     const taxes = await Order.aggregate([
       {
-        $unwind: '$taxLines',
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopId),
+        },
+      },
+      {
+        $unwind: "$taxLines",
       },
       {
         $group: {
           _id: null,
           totalTaxes: {
-            $sum: { $toDouble: '$taxLines.price' },
+            $sum: { $toDouble: "$taxLines.price" },
           },
         },
       },
     ]);
     return taxes[0]?.totalTaxes || 0;
   } catch (error) {
-    console.error('Error calculating total taxes:', error);
+    console.error("Error calculating total taxes:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Fees (Transaction Costs)
-const calculateTotalFees = async () => {
+const calculateTotalFees = async (userShopId) => {
   try {
     const fees = await Order.aggregate([
       {
-        $unwind: '$transactions',
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopId),
+        },
       },
       {
-        $unwind: '$transactions.fees',
+        $unwind: "$transactions",
+      },
+      {
+        $unwind: "$transactions.fees",
       },
       {
         $group: {
           _id: null,
           totalFees: {
-            $sum: { $toDouble: '$transactions.fees.amount' },
+            $sum: { $toDouble: "$transactions.fees.amount" },
           },
         },
       },
     ]);
     return fees[0]?.totalFees || 0;
   } catch (error) {
-    console.error('Error calculating total fees:', error);
+    console.error("Error calculating total fees:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Shipping Cost
-const calculateTotalShippingCost = async () => {
+const calculateTotalShippingCost = async (userShopId) => {
   try {
     const shippingCost = await Order.aggregate([
+      {
+        $match: {
+          userShopId: new mongoose.Types.ObjectId(userShopId),
+        },
+      },
       {
         $group: {
           _id: null,
           totalShippingCost: {
             $sum: {
-              $toDouble: '$totalShippingPrice', // Adjust field name if necessary
+              $toDouble: "$totalShippingPrice", // Adjust field name if necessary
             },
           },
         },
@@ -178,7 +203,7 @@ const calculateTotalShippingCost = async () => {
     ]);
     return shippingCost[0]?.totalShippingCost || 0;
   } catch (error) {
-    console.error('Error calculating total shipping cost:', error);
+    console.error("Error calculating total shipping cost:", error);
     throw error;
   }
 };
@@ -193,64 +218,62 @@ const calculateTotalAdSpend = async () => {
         },
       },
       {
-        $unwind: '$insights',
+        $unwind: "$insights",
       },
       {
         $match: {
-          'insights.spend': { $gt: 0 },
+          "insights.spend": { $gt: 0 },
         },
       },
       {
         $group: {
           _id: null,
-          totalAdSpend: { $sum: { $toDouble: '$insights.spend' } },
+          totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
         },
       },
     ]);
 
     return result[0]?.totalAdSpend || 0;
   } catch (error) {
-    console.error('Error calculating total ad spend:', error);
+    console.error("Error calculating total ad spend:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Sales
-const calculateTotalSales = async () => {
+const calculateTotalSales = async (userShopId) => {
   try {
     // Fetch all necessary data
     const [grossSales, totalRefunds, totalTaxes, totalShippingCost, totalFees] =
       await Promise.all([
-        calculateGrossSales(),
-        calculateTotalRefunds(),
-        calculateTotalTaxes(),
-        calculateTotalShippingCost(),
-        calculateTotalFees(),
+        calculateGrossSales(userShopId),
+        calculateTotalRefunds(userShopId),
+        calculateTotalTaxes(userShopId),
+        calculateTotalShippingCost(userShopId),
+        calculateTotalFees(userShopId),
       ]);
 
     // Duties are set to zero as per instructions
 
     // Calculate Total Sales
     const totalSales =
-      grossSales +
-      totalShippingCost +
-      totalTaxes +
-      totalFees -
-      totalRefunds;
+      grossSales + totalShippingCost + totalTaxes + totalFees - totalRefunds;
     return totalSales;
   } catch (error) {
-    console.error('Error calculating total sales:', error);
+    console.error("Error calculating total sales:", error);
     throw error;
   }
 };
 
 // Function to calculate COGS
-const calculateCOGS = async () => {
+const calculateCOGS = async (userShopId) => {
   try {
     let totalCOGS = 0;
 
     // Fetch orders with line items
-    const orders = await Order.find();
+    const orders = await Order.find({
+      userShopId: new mongoose.Types.ObjectId(userShopId),
+    });
 
     for (const order of orders) {
       for (const lineItem of order.lineItems) {
@@ -258,7 +281,10 @@ const calculateCOGS = async () => {
         const quantity = lineItem.quantity;
 
         // Fetch product variant to get cost_price
-        const product = await Product.findOne({ 'variants.id': variantId });
+        const product = await Product.findOne({
+          "variants.id": variantId,
+          userShopId,
+        });
 
         if (product) {
           const variant = product.variants.find((v) => v.id === variantId);
@@ -270,7 +296,7 @@ const calculateCOGS = async () => {
 
     return totalCOGS;
   } catch (error) {
-    console.error('Error calculating COGS:', error);
+    console.error("Error calculating COGS:", error);
     throw error;
   }
 };
@@ -279,7 +305,9 @@ const calculateCOGS = async () => {
 const getOverheadCost = async () => {
   try {
     // Replace with actual criteria for your overhead costs
-    const overheadCostEntry = await OverheadCost.findOne({ /* criteria */ });
+    const overheadCostEntry = await OverheadCost.findOne({
+      /* criteria */
+    });
 
     if (overheadCostEntry) {
       return parseFloat(overheadCostEntry.overheadCost) || 0;
@@ -287,7 +315,7 @@ const getOverheadCost = async () => {
       return 0; // Default value if no overhead cost is found
     }
   } catch (error) {
-    console.error('Error getting overhead cost:', error);
+    console.error("Error getting overhead cost:", error);
     throw error;
   }
 };

@@ -1,54 +1,80 @@
 // services/grossProfitService.js
 
-import Order from '../models/BulkTables/BulkOrder/order.js';
-import Product from '../models/BulkTables/BulkProduct/product.js';
-import OverheadCost from '../models/overheadCostModel.js';
-import MetaAdInsights from '../models/metaAdInsightModel.js';
-import moment from 'moment';
-import { subMonths, format, addMonths,subDays } from 'date-fns';
-import { getDateRange } from './dateHelpers.js'; 
-const calculateGrossProfitData = async (filter) => {
+import { format, subDays, subMonths } from "date-fns";
+import moment from "moment";
+import mongoose from "mongoose";
+import Order from "../models/BulkTables/BulkOrder/order.js";
+import MetaAdInsights from "../models/metaAdInsightModel.js";
+import OverheadCost from "../models/overheadCostModel.js";
+import { getDateRange } from "./dateHelpers.js";
+const calculateGrossProfitData = async (filter, userShopId) => {
   try {
     // Get the date range based on the filter
     const { startDate, endDate } = getDateRange(filter);
 
     // Calculate Total Sales, COGS, Gross Profit, and Net Profit for the date range
-    const totalSales = await calculateTotalSales(startDate, endDate);
-    const cogs = await calculateCOGS(startDate, endDate);
+    const totalSales = await calculateTotalSales(
+      startDate,
+      endDate,
+      userShopId
+    );
+    const cogs = await calculateCOGS(startDate, endDate, userShopId);
     const grossProfit = totalSales - cogs;
 
     // Other expenses
-    const transactionFees = await calculateTotalFees(startDate, endDate);
-    const shippingAndHandling = await calculateTotalShippingCost(startDate, endDate);
+    const transactionFees = await calculateTotalFees(
+      startDate,
+      endDate,
+      userShopId
+    );
+    const shippingAndHandling = await calculateTotalShippingCost(
+      startDate,
+      endDate,
+      userShopId
+    );
     const marketing = await calculateTotalAdSpend(startDate, endDate);
-    const refunds = await calculateTotalRefunds(startDate, endDate);
+    const refunds = await calculateTotalRefunds(startDate, endDate, userShopId);
     const overhead = await getOverheadCost(startDate, endDate);
-    const taxes = await calculateTotalTaxes(startDate, endDate);
+    const taxes = await calculateTotalTaxes(startDate, endDate, userShopId);
 
     // Calculate Net Profit
     const netProfit =
       grossProfit -
-      (transactionFees + shippingAndHandling + marketing + refunds + overhead + taxes);
+      (transactionFees +
+        shippingAndHandling +
+        marketing +
+        refunds +
+        overhead +
+        taxes);
 
     // Calculate Gross Margin and Net Margin percentages
-    const grossMarginPercentage = totalSales !== 0 ? (grossProfit / totalSales) * 100 : 0;
-    const netMarginPercentage = totalSales !== 0 ? (netProfit / totalSales) * 100 : 0;
+    const grossMarginPercentage =
+      totalSales !== 0 ? (grossProfit / totalSales) * 100 : 0;
+    const netMarginPercentage =
+      totalSales !== 0 ? (netProfit / totalSales) * 100 : 0;
 
     // Fetch change percentages by comparing with the previous period
-    const { previousGrossProfit, previousNetProfit } = await calculatePreviousPeriodData(filter);
+    const { previousGrossProfit, previousNetProfit } =
+      await calculatePreviousPeriodData(filter, userShopId);
 
-    const grossProfitChange = calculatePercentageChange(grossProfit, previousGrossProfit);
-    const netProfitChange = calculatePercentageChange(netProfit, previousNetProfit);
+    const grossProfitChange = calculatePercentageChange(
+      grossProfit,
+      previousGrossProfit
+    );
+    const netProfitChange = calculatePercentageChange(
+      netProfit,
+      previousNetProfit
+    );
 
     const data = [
       {
-        category: 'net profit',
+        category: "net profit",
         amount: Math.round(netProfit),
         change: `${netProfitChange.toFixed(2)}%`,
         grossMargin: `net margin ${netMarginPercentage.toFixed(2)}%`,
       },
       {
-        category: 'gross profit',
+        category: "gross profit",
         amount: Math.round(grossProfit),
         change: `${grossProfitChange.toFixed(2)}%`,
         grossMargin: `gross margin ${grossMarginPercentage.toFixed(2)}%`,
@@ -57,7 +83,7 @@ const calculateGrossProfitData = async (filter) => {
 
     return data;
   } catch (error) {
-    console.error('Error in calculateGrossProfitData:', error.message);
+    console.error("Error in calculateGrossProfitData:", error.message);
     throw error;
   }
 };
@@ -69,29 +95,61 @@ const calculatePercentageChange = (current, previous) => {
 };
 
 // Function to calculate data for the previous period
-const calculatePreviousPeriodData = async (filter) => {
+const calculatePreviousPeriodData = async (filter, userShopId) => {
   const { startDate, endDate } = getDateRange(filter);
   const periodLength = endDate - startDate;
   const previousStartDate = new Date(startDate - periodLength);
   const previousEndDate = new Date(startDate - 1);
 
   // Calculate Gross Profit and Net Profit for the previous date range
-  const totalSales = await calculateTotalSales(previousStartDate, previousEndDate);
-  const cogs = await calculateCOGS(previousStartDate, previousEndDate);
+  const totalSales = await calculateTotalSales(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
+  const cogs = await calculateCOGS(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
   const previousGrossProfit = totalSales - cogs;
 
   // Other expenses
-  const transactionFees = await calculateTotalFees(previousStartDate, previousEndDate);
-  const shippingAndHandling = await calculateTotalShippingCost(previousStartDate, previousEndDate);
-  const marketing = await calculateTotalAdSpend(previousStartDate, previousEndDate);
-  const refunds = await calculateTotalRefunds(previousStartDate, previousEndDate);
+  const transactionFees = await calculateTotalFees(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
+  const shippingAndHandling = await calculateTotalShippingCost(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
+  const marketing = await calculateTotalAdSpend(
+    previousStartDate,
+    previousEndDate
+  );
+  const refunds = await calculateTotalRefunds(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
   const overhead = await getOverheadCost(previousStartDate, previousEndDate);
-  const taxes = await calculateTotalTaxes(previousStartDate, previousEndDate);
+  const taxes = await calculateTotalTaxes(
+    previousStartDate,
+    previousEndDate,
+    userShopId
+  );
 
   // Calculate Net Profit
   const previousNetProfit =
     previousGrossProfit -
-    (transactionFees + shippingAndHandling + marketing + refunds + overhead + taxes);
+    (transactionFees +
+      shippingAndHandling +
+      marketing +
+      refunds +
+      overhead +
+      taxes);
 
   return {
     previousGrossProfit,
@@ -102,19 +160,20 @@ const calculatePreviousPeriodData = async (filter) => {
 // Helper functions to calculate various metrics
 
 // Function to calculate Total Sales
-const calculateTotalSales = async (startDate, endDate) => {
+const calculateTotalSales = async (startDate, endDate, userShopId) => {
   try {
     const totalSalesData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
         $group: {
           _id: null,
           totalSales: {
-            $sum: { $toDouble: '$totalPrice' },
+            $sum: { $toDouble: "$totalPrice" },
           },
         },
       },
@@ -122,41 +181,42 @@ const calculateTotalSales = async (startDate, endDate) => {
 
     return totalSalesData[0]?.totalSales || 0;
   } catch (error) {
-    console.error('Error calculating total sales:', error);
+    console.error("Error calculating total sales:", error);
     throw error;
   }
 };
 
 // Function to calculate COGS
-const calculateCOGS = async (startDate, endDate) => {
+const calculateCOGS = async (startDate, endDate, userShopId) => {
   try {
     const cogsData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
-      { $unwind: '$lineItems' },
+      { $unwind: "$lineItems" },
       {
         $lookup: {
-          from: 'bulkproducts', // Adjust the collection name if necessary
-          localField: 'lineItems.product.id',
-          foreignField: 'id',
-          as: 'productDetails',
+          from: "bulkproducts", // Adjust the collection name if necessary
+          localField: "lineItems.product.id",
+          foreignField: "id",
+          as: "productDetails",
         },
       },
-      { $unwind: '$productDetails' },
+      { $unwind: "$productDetails" },
       {
         $project: {
-          costPrice: { $toDouble: '$productDetails.costPrice' },
-          quantity: '$lineItems.quantity',
+          costPrice: { $toDouble: "$productDetails.costPrice" },
+          quantity: "$lineItems.quantity",
         },
       },
       {
         $group: {
           _id: null,
           totalCOGS: {
-            $sum: { $multiply: ['$costPrice', '$quantity'] },
+            $sum: { $multiply: ["$costPrice", "$quantity"] },
           },
         },
       },
@@ -164,27 +224,28 @@ const calculateCOGS = async (startDate, endDate) => {
 
     return cogsData[0]?.totalCOGS || 0;
   } catch (error) {
-    console.error('Error calculating COGS:', error);
+    console.error("Error calculating COGS:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Fees (Transaction Costs)
-const calculateTotalFees = async (startDate, endDate) => {
+const calculateTotalFees = async (startDate, endDate, userShopId) => {
   try {
     const feesData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
-      { $unwind: '$transactions' },
-      { $unwind: '$transactions.fees' },
+      { $unwind: "$transactions" },
+      { $unwind: "$transactions.fees" },
       {
         $group: {
           _id: null,
           totalFees: {
-            $sum: { $toDouble: '$transactions.fees.amount' },
+            $sum: { $toDouble: "$transactions.fees.amount" },
           },
         },
       },
@@ -192,25 +253,26 @@ const calculateTotalFees = async (startDate, endDate) => {
 
     return feesData[0]?.totalFees || 0;
   } catch (error) {
-    console.error('Error calculating total fees:', error);
+    console.error("Error calculating total fees:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Shipping Cost
-const calculateTotalShippingCost = async (startDate, endDate) => {
+const calculateTotalShippingCost = async (startDate, endDate, userShopId) => {
   try {
     const shippingData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
         $group: {
           _id: null,
           totalShippingCost: {
-            $sum: { $toDouble: '$totalShippingPrice' },
+            $sum: { $toDouble: "$totalShippingPrice" },
           },
         },
       },
@@ -218,7 +280,7 @@ const calculateTotalShippingCost = async (startDate, endDate) => {
 
     return shippingData[0]?.totalShippingCost || 0;
   } catch (error) {
-    console.error('Error calculating total shipping cost:', error);
+    console.error("Error calculating total shipping cost:", error);
     throw error;
   }
 };
@@ -226,11 +288,11 @@ const calculateTotalShippingCost = async (startDate, endDate) => {
 // Function to calculate Total Ad Spend
 const calculateTotalAdSpend = async (startDate, endDate) => {
   try {
-    const startDateString = moment(startDate).format('YYYY-MM-DD');
-    const endDateString = moment(endDate).format('YYYY-MM-DD');
+    const startDateString = moment(startDate).format("YYYY-MM-DD");
+    const endDateString = moment(endDate).format("YYYY-MM-DD");
 
     const adSpendData = await MetaAdInsights.aggregate([
-      { $unwind: '$insights' },
+      { $unwind: "$insights" },
       {
         $match: {
           date: { $gte: startDateString, $lte: endDateString },
@@ -240,7 +302,7 @@ const calculateTotalAdSpend = async (startDate, endDate) => {
         $group: {
           _id: null,
           totalAdSpend: {
-            $sum: { $toDouble: '$insights.spend' },
+            $sum: { $toDouble: "$insights.spend" },
           },
         },
       },
@@ -248,25 +310,26 @@ const calculateTotalAdSpend = async (startDate, endDate) => {
 
     return adSpendData[0]?.totalAdSpend || 0;
   } catch (error) {
-    console.error('Error calculating total ad spend:', error);
+    console.error("Error calculating total ad spend:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Refunds
-const calculateTotalRefunds = async (startDate, endDate) => {
+const calculateTotalRefunds = async (startDate, endDate, userShopId) => {
   try {
     const refundsData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
         $group: {
           _id: null,
           totalRefunds: {
-            $sum: { $toDouble: '$totalRefunded' },
+            $sum: { $toDouble: "$totalRefunded" },
           },
         },
       },
@@ -274,7 +337,7 @@ const calculateTotalRefunds = async (startDate, endDate) => {
 
     return refundsData[0]?.totalRefunds || 0;
   } catch (error) {
-    console.error('Error calculating total refunds:', error);
+    console.error("Error calculating total refunds:", error);
     throw error;
   }
 };
@@ -286,14 +349,17 @@ const getOverheadCost = async (startDate, endDate) => {
       {
         $match: {
           year: { $gte: startDate.getFullYear(), $lte: endDate.getFullYear() },
-          month: { $gte: startDate.getMonth() + 1, $lte: endDate.getMonth() + 1 },
+          month: {
+            $gte: startDate.getMonth() + 1,
+            $lte: endDate.getMonth() + 1,
+          },
         },
       },
       {
         $group: {
           _id: null,
           totalOverhead: {
-            $sum: '$overheadCost',
+            $sum: "$overheadCost",
           },
         },
       },
@@ -301,26 +367,27 @@ const getOverheadCost = async (startDate, endDate) => {
 
     return overheadData[0]?.totalOverhead || 0;
   } catch (error) {
-    console.error('Error getting overhead cost:', error);
+    console.error("Error getting overhead cost:", error);
     throw error;
   }
 };
 
 // Function to calculate Total Taxes
-const calculateTotalTaxes = async (startDate, endDate) => {
+const calculateTotalTaxes = async (startDate, endDate, userShopId) => {
   try {
     const taxesData = await Order.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
-      { $unwind: '$taxLines' },
+      { $unwind: "$taxLines" },
       {
         $group: {
           _id: null,
           totalTaxes: {
-            $sum: { $toDouble: '$taxLines.price' },
+            $sum: { $toDouble: "$taxLines.price" },
           },
         },
       },
@@ -328,19 +395,20 @@ const calculateTotalTaxes = async (startDate, endDate) => {
 
     return taxesData[0]?.totalTaxes || 0;
   } catch (error) {
-    console.error('Error calculating total taxes:', error);
+    console.error("Error calculating total taxes:", error);
     throw error;
   }
 };
 
-export const calculatePerformanceMetrics = async (timeFormat) => {
+export const calculatePerformanceMetrics = async (timeFormat, userShopId) => {
   const now = new Date();
   const startDate = subMonths(now, 12);
-
+  // REtrunung null totalcost & revenue when we filter with userShopid
   const ordersAggregation = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: now },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -364,8 +432,8 @@ export const calculatePerformanceMetrics = async (timeFormat) => {
     {
       $match: {
         date: {
-          $gte: format(startDate, 'yyyy-MM'),
-          $lte: format(now, 'yyyy-MM'),
+          $gte: format(startDate, "yyyy-MM"),
+          $lte: format(now, "yyyy-MM"),
         },
       },
     },
@@ -450,29 +518,32 @@ export const calculatePerformanceMetrics = async (timeFormat) => {
 
   const performanceData = Object.keys(performanceMap).map((key) => {
     const data = performanceMap[key];
-    
-    const date = timeFormat === 'month' 
-      ? format(new Date(data.year, data.month - 1), 'MMM yyyy') 
-      : format(new Date(data.year, 0), 'yyyy'); 
+
+    const date =
+      timeFormat === "month"
+        ? format(new Date(data.year, data.month - 1), "MMM yyyy")
+        : format(new Date(data.year, 0), "yyyy");
 
     const grossProfit = data.grossProfit || 0;
     const totalAdsSpend = data.totalAdsSpend || 0;
     const overheadCost = data.overheadCost || 0;
     const netProfit = grossProfit - totalAdsSpend - overheadCost;
     const netProfitMargin = data.revenue ? (netProfit / data.revenue) * 100 : 0;
-    const grossProfitMargin = data.revenue ? (grossProfit / data.revenue) * 100 : 0;
+    const grossProfitMargin = data.revenue
+      ? (grossProfit / data.revenue) * 100
+      : 0;
 
     return {
       date,
       grossProfit: parseFloat(grossProfit.toFixed(2)),
-      netMargin: parseFloat((netProfit + overheadCost).toFixed(2)), 
-      previousProfit: 0, 
-      revenue: parseFloat(data.revenue.toFixed(2)),
+      netMargin: parseFloat((netProfit + overheadCost).toFixed(2)),
+      previousProfit: 0,
+      revenue: parseFloat(data?.revenue?.toFixed(2)) || 0,
       totalAdsSpend: parseFloat(totalAdsSpend.toFixed(2)),
       netProfit: parseFloat(netProfit.toFixed(2)),
       netProfitMargin: parseFloat(netProfitMargin.toFixed(2)),
       orderCount: data.orderCount || 0,
-      totalCost: parseFloat((data.totalCost + overheadCost).toFixed(2)),
+      totalCost: parseFloat((data.totalCost + overheadCost).toFixed(2)) || 0,
       grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)),
       unitsSold: data.unitsSold || 0,
     };
@@ -497,7 +568,7 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
   let endDate;
 
   switch (filter) {
-    case "3m": 
+    case "3m":
       startDate = subMonths(now, 2);
       startDate.setDate(1);
       endDate = now;
@@ -506,25 +577,27 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
       startDate = subDays(now, 1);
       endDate = startDate;
       break;
-    case "7d":  
+    case "7d":
       endDate = subDays(now, 1);
       startDate = subDays(endDate, 7);
       break;
-    case "30d":  
+    case "30d":
       endDate = subDays(now, 1);
       startDate = subMonths(endDate, 1);
       break;
-    case "6m": 
+    case "6m":
       startDate = subMonths(now, 6);
       endDate = now;
       break;
-    case "12m":  
+    case "12m":
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
       endDate = new Date();
       break;
     case "custom_date_range":
       if (!customStartDate || !customEndDate) {
-        throw new Error("Custom start and end dates are required for custom_date_range filter");
+        throw new Error(
+          "Custom start and end dates are required for custom_date_range filter"
+        );
       }
       startDate = new Date(customStartDate);
       endDate = new Date(customEndDate);
@@ -536,16 +609,26 @@ const getDateRangeTable = (filter, customStartDate, customEndDate) => {
   return { startDate, endDate };
 };
 
-export const getProfitTableService = async (filter, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+export const getProfitTableService = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
+  const { startDate, endDate } = getDateRangeTable(
+    filter,
+    customStartDate,
+    customEndDate
+  );
 
-  const formattedStartDate = format(startDate, 'yyyy-MM');
-  const formattedEndDate = format(endDate, 'yyyy-MM');
+  const formattedStartDate = format(startDate, "yyyy-MM");
+  const formattedEndDate = format(endDate, "yyyy-MM");
 
   const salesAndCosts = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -588,11 +671,11 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-
   const shippingHandling = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -601,19 +684,19 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
           year: { $year: "$createdAt" },
           month: { $month: "$createdAt" },
         },
-        shippingHandlingCost: { $sum: { $toDouble: "$shippingCost" } }, 
+        shippingHandlingCost: { $sum: { $toDouble: "$shippingCost" } },
       },
     },
     {
       $sort: { "_id.year": 1, "_id.month": 1 },
     },
   ]);
-
 
   const transactionCosts = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -622,7 +705,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
           year: { $year: "$createdAt" },
           month: { $month: "$createdAt" },
         },
-        transactionCost: { $sum: { $toDouble: "$transactionFee" } }, 
+        transactionCost: { $sum: { $toDouble: "$transactionFee" } },
       },
     },
     {
@@ -630,11 +713,11 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-
   const taxes = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -643,7 +726,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
           year: { $year: "$createdAt" },
           month: { $month: "$createdAt" },
         },
-        taxes: { $sum: { $toDouble: "$taxes" } }, 
+        taxes: { $sum: { $toDouble: "$taxes" } },
       },
     },
     {
@@ -676,7 +759,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   const generateKey = (year, month) => `${year}-${month}`;
 
   // Populate sales and costs
-  salesAndCosts.forEach(item => {
+  salesAndCosts.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -686,7 +769,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   });
 
   // Populate marketing spend
-  marketing.forEach(item => {
+  marketing.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -694,7 +777,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   });
 
   // Populate shipping & handling
-  shippingHandling.forEach(item => {
+  shippingHandling.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -702,7 +785,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   });
 
   // Populate transaction costs
-  transactionCosts.forEach(item => {
+  transactionCosts.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -710,7 +793,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   });
 
   // Populate taxes
-  taxes.forEach(item => {
+  taxes.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -718,7 +801,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   });
 
   // Populate overhead costs
-  overhead.forEach(item => {
+  overhead.forEach((item) => {
     const { year, month } = item._id;
     const key = generateKey(year, month);
     if (!dataMap[key]) dataMap[key] = {};
@@ -730,7 +813,7 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
   const last = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
   while (current <= last) {
-    const monthName = format(current, 'MMM').toLowerCase(); // e.g., 'jan', 'feb'
+    const monthName = format(current, "MMM").toLowerCase(); // e.g., 'jan', 'feb'
     const key = `${current.getFullYear()}-${current.getMonth() + 1}`;
     monthsList.push({ key, month: monthName });
     current.setMonth(current.getMonth() + 1);
@@ -772,13 +855,25 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
 
     // Calculate percentages relative to Total Sales
     const totalSales = data.totalSales || 0;
-    const costsOfGoodsSoldPct = totalSales ? ((data.costOfGoodsSold || 0) / totalSales) * 100 : 0;
-    const marketingPct = totalSales ? ((data.marketingSpend || 0) / totalSales) * 100 : 0;
-    const shippingHandlingPct = totalSales ? ((data.shippingHandlingCost || 0) / totalSales) * 100 : 0;
-    const transactionPct = totalSales ? ((data.transactionCost || 0) / totalSales) * 100 : 0;
-    const refundsPct = totalSales ? ((data.totalRefunds || 0) / totalSales) * 100 : 0;
+    const costsOfGoodsSoldPct = totalSales
+      ? ((data.costOfGoodsSold || 0) / totalSales) * 100
+      : 0;
+    const marketingPct = totalSales
+      ? ((data.marketingSpend || 0) / totalSales) * 100
+      : 0;
+    const shippingHandlingPct = totalSales
+      ? ((data.shippingHandlingCost || 0) / totalSales) * 100
+      : 0;
+    const transactionPct = totalSales
+      ? ((data.transactionCost || 0) / totalSales) * 100
+      : 0;
+    const refundsPct = totalSales
+      ? ((data.totalRefunds || 0) / totalSales) * 100
+      : 0;
     const taxesPct = totalSales ? ((data.taxes || 0) / totalSales) * 100 : 0;
-    const overheadPct = totalSales ? ((data.overheadCost || 0) / totalSales) * 100 : 0;
+    const overheadPct = totalSales
+      ? ((data.overheadCost || 0) / totalSales) * 100
+      : 0;
 
     // Populate each category in the response
     response[0][month] = `$${(data.totalSales || 0).toFixed(2)}`;
@@ -801,13 +896,23 @@ export const getProfitTableService = async (filter, customStartDate, customEndDa
   return response;
 };
 
-export const getCostTrendsService = async (filter, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+export const getCostTrendsService = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
+  const { startDate, endDate } = getDateRangeTable(
+    filter,
+    customStartDate,
+    customEndDate
+  );
 
   const costsWithoutOverhead = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -850,48 +955,77 @@ export const getCostTrendsService = async (filter, customStartDate, customEndDat
 
   const generateKey = (year, month, day) => `${year}-${month}-${day}`;
 
-  costsWithoutOverhead.forEach(item => {
+  costsWithoutOverhead.forEach((item) => {
     const { year, month, day } = item._id;
     const key = generateKey(year, month, day);
-    if (!costsMap[key]) costsMap[key] = { date: "", totalCostsWithoutOverhead: 0, totalCostsWithOverhead: 0 };
+    if (!costsMap[key])
+      costsMap[key] = {
+        date: "",
+        totalCostsWithoutOverhead: 0,
+        totalCostsWithOverhead: 0,
+      };
     costsMap[key].totalCostsWithoutOverhead += item.totalCost;
   });
 
-  overheadCosts.forEach(item => {
+  overheadCosts.forEach((item) => {
     const { year, month, day } = item._id;
     const key = generateKey(year, month, day);
-    if (!costsMap[key]) costsMap[key] = { date: "", totalCostsWithoutOverhead: 0, totalCostsWithOverhead: 0 };
+    if (!costsMap[key])
+      costsMap[key] = {
+        date: "",
+        totalCostsWithoutOverhead: 0,
+        totalCostsWithOverhead: 0,
+      };
     costsMap[key].totalCostsWithOverhead += item.overheadCost;
   });
 
-  Object.keys(costsMap).forEach(key => {
-    costsMap[key].totalCostsWithOverhead += costsMap[key].totalCostsWithoutOverhead;
+  Object.keys(costsMap).forEach((key) => {
+    costsMap[key].totalCostsWithOverhead +=
+      costsMap[key].totalCostsWithoutOverhead;
   });
 
   const datesList = [];
   const currentDate = new Date(startDate);
   while (currentDate <= endDate) {
-    const key = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
-    const formattedDate = format(currentDate, 'dd MMM');
+    const key = `${currentDate.getFullYear()}-${
+      currentDate.getMonth() + 1
+    }-${currentDate.getDate()}`;
+    const formattedDate = format(currentDate, "dd MMM");
     datesList.push({ key, date: formattedDate });
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   const response = datesList.map(({ key, date }) => {
-    const data = costsMap[key] || { totalCostsWithOverhead: 0, totalCostsWithoutOverhead: 0 };
+    const data = costsMap[key] || {
+      totalCostsWithOverhead: 0,
+      totalCostsWithoutOverhead: 0,
+    };
     return {
       date,
-      totalCostsWithOverhead: parseFloat(data.totalCostsWithOverhead.toFixed(2)),
-      totalCostsWithoutOverhead: parseFloat(data.totalCostsWithoutOverhead.toFixed(2)),
+      totalCostsWithOverhead: parseFloat(
+        data.totalCostsWithOverhead.toFixed(2)
+      ),
+      totalCostsWithoutOverhead: parseFloat(
+        data.totalCostsWithoutOverhead.toFixed(2)
+      ),
     };
   });
 
   return response;
 };
 
-export const getGrossProfitService = async (filter, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
-
+export const getGrossProfitService = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
+  const { startDate, endDate } = getDateRangeTable(
+    filter,
+    customStartDate,
+    customEndDate
+  );
+  // YAHA sb overhead PER by userShopId filteration applied ni hey
   // Aggregate Overhead from OverheadCost collection
   const overheadAggregation = await OverheadCost.aggregate([
     {
@@ -907,13 +1041,15 @@ export const getGrossProfitService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-  const totalOverhead = overheadAggregation.length > 0 ? overheadAggregation[0].totalOverhead : 0;
+  const totalOverhead =
+    overheadAggregation.length > 0 ? overheadAggregation[0].totalOverhead : 0;
 
   // Aggregate Shipping from Orders collection
   const shippingAggregation = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -924,13 +1060,15 @@ export const getGrossProfitService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-  const totalShipping = shippingAggregation.length > 0 ? shippingAggregation[0].totalShipping : 0;
+  const totalShipping =
+    shippingAggregation.length > 0 ? shippingAggregation[0].totalShipping : 0;
 
   // Aggregate Transaction from Orders collection
   const transactionAggregation = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -941,13 +1079,17 @@ export const getGrossProfitService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-  const totalTransaction = transactionAggregation.length > 0 ? transactionAggregation[0].totalTransaction : 0;
+  const totalTransaction =
+    transactionAggregation.length > 0
+      ? transactionAggregation[0].totalTransaction
+      : 0;
 
   // Aggregate Refunds from Orders collection
   const refundsAggregation = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -958,13 +1100,15 @@ export const getGrossProfitService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-  const totalRefunds = refundsAggregation.length > 0 ? refundsAggregation[0].totalRefunds : 0;
+  const totalRefunds =
+    refundsAggregation.length > 0 ? refundsAggregation[0].totalRefunds : 0;
 
   // Aggregate Taxes from Orders collection
   const taxesAggregation = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
     {
@@ -975,22 +1119,32 @@ export const getGrossProfitService = async (filter, customStartDate, customEndDa
     },
   ]);
 
-  const totalTaxes = taxesAggregation.length > 0 ? taxesAggregation[0].totalTaxes : 0;
+  const totalTaxes =
+    taxesAggregation.length > 0 ? taxesAggregation[0].totalTaxes : 0;
 
   const response = [
-    { "name": "Overhead", "value": parseFloat(totalOverhead.toFixed(2)) },
-    { "name": "Shipping", "value": parseFloat(totalShipping.toFixed(2)) },
-    { "name": "Transaction", "value": parseFloat(totalTransaction.toFixed(2)) },
-    { "name": "Refunds", "value": parseFloat(totalRefunds.toFixed(2)) },
-    { "name": "Taxes", "value": parseFloat(totalTaxes.toFixed(2)) },
+    { name: "Overhead", value: parseFloat(totalOverhead.toFixed(2)) },
+    { name: "Shipping", value: parseFloat(totalShipping.toFixed(2)) },
+    { name: "Transaction", value: parseFloat(totalTransaction.toFixed(2)) },
+    { name: "Refunds", value: parseFloat(totalRefunds.toFixed(2)) },
+    { name: "Taxes", value: parseFloat(totalTaxes.toFixed(2)) },
   ];
 
   return response;
 };
 
-export const getCostsBreakdownService = async (filter, customStartDate, customEndDate) => {
+export const getCostsBreakdownService = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
   // Get the date range based on the filter
-  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+  const { startDate, endDate } = getDateRangeTable(
+    filter,
+    customStartDate,
+    customEndDate
+  );
 
   // Initialize total costs
   let totalOverhead = 0;
@@ -1023,6 +1177,8 @@ export const getCostsBreakdownService = async (filter, customStartDate, customEn
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
+        // filter with sid too!
       },
     },
     {
@@ -1046,53 +1202,78 @@ export const getCostsBreakdownService = async (filter, customStartDate, customEn
 
   // Prepare the response
   const response = [
-    { "name": "Overhead", "value": parseFloat(totalOverhead.toFixed(2)) },
-    { "name": "Shipping", "value": parseFloat(totalShipping.toFixed(2)) },
-    { "name": "Transaction", "value": parseFloat(totalTransaction.toFixed(2)) },
-    { "name": "Refunds", "value": parseFloat(totalRefunds.toFixed(2)) },
-    { "name": "Taxes", "value": parseFloat(totalTaxes.toFixed(2)) },
+    { name: "Overhead", value: parseFloat(totalOverhead.toFixed(2)) },
+    { name: "Shipping", value: parseFloat(totalShipping.toFixed(2)) },
+    { name: "Transaction", value: parseFloat(totalTransaction.toFixed(2)) },
+    { name: "Refunds", value: parseFloat(totalRefunds.toFixed(2)) },
+    { name: "Taxes", value: parseFloat(totalTaxes.toFixed(2)) },
   ];
 
   return response;
 };
 
-export const getProductsBreakdownService = async (filter, variant, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRangeTable(filter, customStartDate, customEndDate);
+export const getProductsBreakdownService = async (
+  filter,
+  variant,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
+  const { startDate, endDate } = getDateRangeTable(
+    filter,
+    customStartDate,
+    customEndDate
+  );
 
   let groupField;
-  if (variant === 'products') {
-    groupField = '$lineItems.product.id';
-  } else if (variant === 'variants') {
-    groupField = '$lineItems.variant.id';
-  } else if (variant === 'categories') {
-    groupField = '$lineItems.product.productType';
+  if (variant === "products") {
+    groupField = "$lineItems.product.id";
+  } else if (variant === "variants") {
+    groupField = "$lineItems.variant.id";
+  } else if (variant === "categories") {
+    groupField = "$lineItems.product.productType";
   }
 
   const data = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
+        userShopId: new mongoose.Types.ObjectId(userShopId),
       },
     },
-    { $unwind: '$lineItems' },
+    { $unwind: "$lineItems" },
     {
       $group: {
         _id: groupField,
-        totalSales: { $sum: { $multiply: [{ $toDouble: '$lineItems.price' }, '$lineItems.quantity'] } },
-        totalCost: { $sum: { $multiply: [{ $toDouble: '$lineItems.costPrice' }, '$lineItems.quantity'] } },
-        quantitySold: { $sum: '$lineItems.quantity' },
-        productInfo: { $first: '$lineItems.product' },
-        variantInfo: { $first: '$lineItems.variant' },
+        totalSales: {
+          $sum: {
+            $multiply: [
+              { $toDouble: "$lineItems.price" },
+              "$lineItems.quantity",
+            ],
+          },
+        },
+        totalCost: {
+          $sum: {
+            $multiply: [
+              { $toDouble: "$lineItems.costPrice" },
+              "$lineItems.quantity",
+            ],
+          },
+        },
+        quantitySold: { $sum: "$lineItems.quantity" },
+        productInfo: { $first: "$lineItems.product" },
+        variantInfo: { $first: "$lineItems.variant" },
       },
     },
     {
       $addFields: {
-        profit: { $subtract: ['$totalSales', '$totalCost'] },
+        profit: { $subtract: ["$totalSales", "$totalCost"] },
         profitMargin: {
           $cond: {
-            if: { $eq: ['$totalSales', 0] },
+            if: { $eq: ["$totalSales", 0] },
             then: 0,
-            else: { $multiply: [{ $divide: ['$profit', '$totalSales'] }, 100] },
+            else: { $multiply: [{ $divide: ["$profit", "$totalSales"] }, 100] },
           },
         },
       },
@@ -1105,31 +1286,37 @@ export const getProductsBreakdownService = async (filter, variant, customStartDa
     },
   ]);
 
-  const response = data.map(item => {
+  const response = data.map((item) => {
     let formattedItem = {};
-    if (variant === 'products') {
+    if (variant === "products") {
       formattedItem = {
-        productImage: (item.productInfo.images && item.productInfo.images[0]) ? item.productInfo.images[0].src : 'https://i.ibb.co/T8MtPY7/product1.png',
-        productTitle: item.productInfo.title || 'Unknown Product',
-        productSubTitle: item.productInfo.description || '',
+        productImage:
+          item.productInfo.images && item.productInfo.images[0]
+            ? item.productInfo.images[0].src
+            : "https://i.ibb.co/T8MtPY7/product1.png",
+        productTitle: item.productInfo.title || "Unknown Product",
+        productSubTitle: item.productInfo.description || "",
         sales: parseFloat(item.totalSales.toFixed(2)),
         netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
         profit: parseFloat(item.profit.toFixed(2)),
         profitMargin: parseFloat(item.profitMargin.toFixed(2)),
       };
-    } else  if (variant === 'variants') {
-      const variantImage = item.variantInfo && item.variantInfo.image && item.variantInfo.image.src
-        ? item.variantInfo.image.src
-        : 'https://i.ibb.co/T8MtPY7/product1.png';
-  
-      const variantTitle = item.variantInfo && item.variantInfo.title
-        ? item.variantInfo.title
-        : 'Unknown Variant';
-  
-      const variantSubTitle = item.productInfo && item.productInfo.title
-        ? item.productInfo.title
-        : '';
-  
+    } else if (variant === "variants") {
+      const variantImage =
+        item.variantInfo && item.variantInfo.image && item.variantInfo.image.src
+          ? item.variantInfo.image.src
+          : "https://i.ibb.co/T8MtPY7/product1.png";
+
+      const variantTitle =
+        item.variantInfo && item.variantInfo.title
+          ? item.variantInfo.title
+          : "Unknown Variant";
+
+      const variantSubTitle =
+        item.productInfo && item.productInfo.title
+          ? item.productInfo.title
+          : "";
+
       formattedItem = {
         variantImage,
         variantTitle,
@@ -1139,11 +1326,14 @@ export const getProductsBreakdownService = async (filter, variant, customStartDa
         profit: parseFloat(item.profit.toFixed(2)),
         profitMargin: parseFloat(item.profitMargin.toFixed(2)),
       };
-    } else if (variant === 'categories') {
+    } else if (variant === "categories") {
       formattedItem = {
-        categoryImage: (item.productInfo.images && item.productInfo.images[0]) ? item.productInfo.images[0].src : 'https://i.ibb.co/T8MtPY7/product1.png',
-        categoryTitle: item._id || 'Unknown Category',
-        categorySubTitle: '',
+        categoryImage:
+          item.productInfo.images && item.productInfo.images[0]
+            ? item.productInfo.images[0].src
+            : "https://i.ibb.co/T8MtPY7/product1.png",
+        categoryTitle: item._id || "Unknown Category",
+        categorySubTitle: "",
         sales: parseFloat(item.totalSales.toFixed(2)),
         netSales: parseFloat((item.totalSales - item.totalCost).toFixed(2)),
         profit: parseFloat(item.profit.toFixed(2)),

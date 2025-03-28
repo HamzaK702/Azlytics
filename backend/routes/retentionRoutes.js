@@ -1,36 +1,35 @@
 import express from "express";
 import {
-  getRepeatRateByCity,
-  getRepeatRateBySKU,
-  getCustomerStickiness,
-  getRetentionRates,
-  fetchCityBreakdown,
-  fetchRegionBreakdown,
-  fetchProductBreakdown,
   fetchAovBreakdown,
-  getRetentionChartData,
-  getRepeatRateByProduct,
+  fetchAveragePerOrder,
+  fetchAveragePerOrderCompare,
+  fetchCityBreakdown,
   fetchLTV,
   fetchLTVCompare,
-  getRepeatPurchaseRate,
-  getRepeatPurchaseRateCompare,
+  fetchProductBreakdown,
+  fetchRegionBreakdown,
   fetchTimeBetweenOrders,
   fetchTimeBetweenOrdersCompare,
-  fetchAveragePerOrderCompare,
-  fetchAveragePerOrder,
-  getRetentionCurves,
-  retentionCompare,
+  getCustomerStickiness,
   getFollowUpPurchases,
-  
-  
+  getRepeatPurchaseRate,
+  getRepeatPurchaseRateCompare,
+  getRepeatRateByCity,
+  getRepeatRateByProduct,
+  getRepeatRateBySKU,
+  getRetentionChartData,
+  getRetentionCurves,
+  getRetentionRates,
+  retentionCompare,
 } from "../controllers/retentionController.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 import { getRFMCohunt } from "../services/retentionService.js";
 
 const router = express.Router();
 
-router.get("/repeat-rate-city", getRepeatRateByCity);
+router.get("/repeat-rate-city", authMiddleware, getRepeatRateByCity); //
 router.get("/repeat-rate/sku", getRepeatRateBySKU);
-router.get("/repeat-rate-product", getRepeatRateByProduct);
+router.get("/repeat-rate-product", authMiddleware, getRepeatRateByProduct); //
 router.get("/customer-stickiness", getCustomerStickiness);
 router.get("/retention-rates", getRetentionRates);
 router.get("/retention-chart", getRetentionChartData);
@@ -38,18 +37,29 @@ router.get("/retention-city", fetchCityBreakdown);
 router.get("/retention-region", fetchRegionBreakdown);
 router.get("/retention-product", fetchProductBreakdown);
 router.get("/retention-aov", fetchAovBreakdown);
-router.get("/ltv", fetchLTV);
-router.get("/ltv-compare", fetchLTVCompare);
-router.get("/repeat-purchase-rate", getRepeatPurchaseRate);
-router.get("/repeat-purchase-rate-compare", getRepeatPurchaseRateCompare);
-router.get("/time-between-order", fetchTimeBetweenOrders);
-router.get("/time-between-order-compare", fetchTimeBetweenOrdersCompare);
-router.get("/average-per-order", fetchAveragePerOrder);
-router.get("/average-per-order-compare", fetchAveragePerOrderCompare);
-router.get("/rfm-cohunt", getRFMCohunt);
-router.get('/retention-curve', getRetentionCurves);
-router.get('/retention-curve-compare', retentionCompare)
-router.get('/follow-up-purchases', getFollowUpPurchases);
-
+router.get("/ltv", authMiddleware, fetchLTV); //
+router.get("/ltv-compare", authMiddleware, fetchLTVCompare); //
+router.get("/repeat-purchase-rate", authMiddleware, getRepeatPurchaseRate); //
+router.get(
+  "/repeat-purchase-rate-compare",
+  authMiddleware,
+  getRepeatPurchaseRateCompare
+); //
+router.get("/time-between-order", authMiddleware, fetchTimeBetweenOrders); //
+router.get(
+  "/time-between-order-compare",
+  authMiddleware,
+  fetchTimeBetweenOrdersCompare
+); //
+router.get("/average-per-order", authMiddleware, fetchAveragePerOrder); //
+router.get(
+  "/average-per-order-compare",
+  authMiddleware,
+  fetchAveragePerOrderCompare
+); //
+router.get("/rfm-cohunt", authMiddleware, getRFMCohunt); //
+router.get("/retention-curve", authMiddleware, getRetentionCurves); //
+router.get("/retention-curve-compare", authMiddleware, retentionCompare); //
+router.get("/follow-up-purchases", authMiddleware, getFollowUpPurchases); //
 
 export default router;

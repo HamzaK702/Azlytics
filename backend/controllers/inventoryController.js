@@ -29,10 +29,7 @@ export const fetchInventory = async (req, res) => {
 export const fetchInventoryTableData = async (req, res) => {
   try {
     const userShopId = req.userShopId;
-    console.log(
-      "🚀 ~ fetchInventoryTableDataController ~ userShopId:",
-      userShopId
-    );
+    console.log(typeof userShopId);
     const tableData = await getInventoryTableData(userShopId);
     res.json(tableData);
   } catch (error) {

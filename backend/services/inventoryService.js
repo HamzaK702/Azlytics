@@ -1,5 +1,5 @@
-import Order from "../models/BulkTables/BulkOrder/order.js";
 import mongoose from "mongoose";
+import Order from "../models/BulkTables/BulkOrder/order.js";
 
 export const getInventory = async (
   filter,
@@ -105,7 +105,7 @@ export const getInventory = async (
     const pipeline = [
       {
         $match: {
-          // userShopId: mongoose.Types.ObjectId(userShopId), // if ObjectId
+          userShopId: new mongoose.Types.ObjectId(userShopIdLocale),
           createdAt: {
             $gte: new Date(startDateISO),
             $lte: new Date(endDateISO),
@@ -190,7 +190,6 @@ function getWeekNumber(date) {
 
 export const getInventoryTableData = async (userShopIdLocale) => {
   try {
-    console.log("🚀 ~ getInventoryTableData ~ userShopId:", userShopIdLocale);
     const now = new Date();
 
     const pipeline = [

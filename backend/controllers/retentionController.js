@@ -1,29 +1,28 @@
 import {
   calculateAveragePerOrder,
+  calculateCustomerStickiness,
   calculateFollowUpPurchases,
-  calculateRepeatRateByCity,
-  calculateTimeBetweenOrders,
-  getRetentionCurveCompareData,
-  getRetentionCurveData,
-} from "../services/retentionService.js";
-import { calculateRepeatRateBySKU } from "../services/retentionService.js";
-import { calculateCustomerStickiness } from "../services/retentionService.js";
-import { getRetentionCurve } from "../services/retentionService.js";
-import { getCityBreakdown } from "../services/retentionService.js";
-import { getRegionBreakdown } from "../services/retentionService.js";
-import { getProductTitleBreakdown } from "../services/retentionService.js";
-import { getAovBreakdown } from "../services/retentionService.js";
-import { getRetentionChart } from "../services/retentionService.js";
-import { calculateRepeatRateByProduct } from "../services/retentionService.js";
-import { calculateLTV } from "../services/retentionService.js";
-import {
+  calculateLTV,
   calculateRepeatPurchaseRate,
   calculateRepeatPurchaseRateCompare,
+  calculateRepeatRateByCity,
+  calculateRepeatRateByProduct,
+  calculateRepeatRateBySKU,
+  calculateTimeBetweenOrders,
+  getAovBreakdown,
+  getCityBreakdown,
+  getProductTitleBreakdown,
+  getRegionBreakdown,
+  getRetentionChart,
+  getRetentionCurve,
+  getRetentionCurveCompareData,
+  getRetentionCurveData,
 } from "../services/retentionService.js";
 
 export const getRepeatRateByCity = async (req, res) => {
   try {
-    const repeatRateByCity = await calculateRepeatRateByCity();
+    const { userShopId } = req;
+    const repeatRateByCity = await calculateRepeatRateByCity(userShopId);
     res.json(repeatRateByCity);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -41,7 +40,8 @@ export const getRepeatRateBySKU = async (req, res) => {
 
 export const getRepeatRateByProduct = async (req, res) => {
   try {
-    const productData = await calculateRepeatRateByProduct();
+    const { userShopId } = req;
+    const productData = await calculateRepeatRateByProduct(userShopId);
     return res.status(200).json(productData);
   } catch (error) {
     console.error("Error calculating repeat rate by product:", error);
@@ -81,7 +81,7 @@ export const getRetentionRates = async (req, res) => {
 
 export const getRetentionChartData = async (req, res) => {
   try {
-    const { period } = req.query; 
+    const { period } = req.query;
     const retentionData = await getRetentionChart(period);
     res.status(200).json({
       status: "success",
@@ -163,8 +163,9 @@ export const fetchAovBreakdown = async (req, res) => {
 
 export const fetchLTV = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter) || 360; 
-    const LTVData = await calculateLTV(filter);
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter) || 360;
+    const LTVData = await calculateLTV(filter, userShopId);
     res.status(200).json(LTVData);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -174,9 +175,10 @@ export const fetchLTV = async (req, res) => {
 // LTV Comparison
 export const fetchLTVCompare = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter) || 360; 
-    const currentLTV = await calculateLTV(filter);
-    const previousLTV = await calculateLTV(filter * 2); 
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter) || 360;
+    const currentLTV = await calculateLTV(filter, userShopId);
+    const previousLTV = await calculateLTV(filter * 2, userShopId);
 
     const comparisonData = currentLTV.map((item, index) => ({
       category: item.category,
@@ -192,12 +194,19 @@ export const fetchLTVCompare = async (req, res) => {
 
 export const getRepeatPurchaseRate = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter); 
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter);
     if (isNaN(filter) || filter <= 0) {
-      return res.status(400).json({ error: "Invalid filter specified. It should be a positive integer representing days." });
+      return res.status(400).json({
+        error:
+          "Invalid filter specified. It should be a positive integer representing days.",
+      });
     }
 
-    const repeatPurchaseData = await calculateRepeatPurchaseRate(filter);
+    const repeatPurchaseData = await calculateRepeatPurchaseRate(
+      filter,
+      userShopId
+    );
     res.status(200).json(repeatPurchaseData);
   } catch (error) {
     console.error("Error fetching repeat purchase rate:", error);
@@ -207,12 +216,19 @@ export const getRepeatPurchaseRate = async (req, res) => {
 
 export const getRepeatPurchaseRateCompare = async (req, res) => {
   try {
+    const { userShopId } = req;
     const filter = parseInt(req.query.filter);
     if (isNaN(filter) || filter <= 0) {
-      return res.status(400).json({ error: "Invalid filter specified. It should be a positive integer representing days." });
+      return res.status(400).json({
+        error:
+          "Invalid filter specified. It should be a positive integer representing days.",
+      });
     }
 
-    const repeatPurchaseDataCompare = await calculateRepeatPurchaseRateCompare(filter);
+    const repeatPurchaseDataCompare = await calculateRepeatPurchaseRateCompare(
+      filter,
+      userShopId
+    );
     res.status(200).json(repeatPurchaseDataCompare);
   } catch (error) {
     console.error("Error fetching repeat purchase rate compare:", error);
@@ -222,8 +238,12 @@ export const getRepeatPurchaseRateCompare = async (req, res) => {
 
 export const fetchTimeBetweenOrders = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter) || 60; 
-    const timeBetweenOrdersData = await calculateTimeBetweenOrders(filter);
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter) || 60;
+    const timeBetweenOrdersData = await calculateTimeBetweenOrders(
+      filter,
+      userShopId
+    );
     res.status(200).json(timeBetweenOrdersData);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -232,9 +252,16 @@ export const fetchTimeBetweenOrders = async (req, res) => {
 
 export const fetchTimeBetweenOrdersCompare = async (req, res) => {
   try {
+    const { userShopId } = req;
     const filter = parseInt(req.query.filter) || 90;
-    const currentTimeData = await calculateTimeBetweenOrders(filter);
-    const previousTimeData = await calculateTimeBetweenOrders(filter * 2); 
+    const currentTimeData = await calculateTimeBetweenOrders(
+      filter,
+      userShopId
+    );
+    const previousTimeData = await calculateTimeBetweenOrders(
+      filter * 2,
+      userShopId
+    );
 
     const comparisonData = currentTimeData.map((item, index) => ({
       label: item.label,
@@ -252,8 +279,12 @@ export const fetchTimeBetweenOrdersCompare = async (req, res) => {
 
 export const fetchAveragePerOrder = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter) || 60; 
-    const averagePerOrderData = await calculateAveragePerOrder(filter);
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter) || 60;
+    const averagePerOrderData = await calculateAveragePerOrder(
+      filter,
+      userShopId
+    );
     res.status(200).json(averagePerOrderData);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -262,9 +293,16 @@ export const fetchAveragePerOrder = async (req, res) => {
 
 export const fetchAveragePerOrderCompare = async (req, res) => {
   try {
-    const filter = parseInt(req.query.filter) || 60; 
-    const currentAverageData = await calculateAveragePerOrder(filter);
-    const previousAverageData = await calculateAveragePerOrder(filter * 2);
+    const { userShopId } = req;
+    const filter = parseInt(req.query.filter) || 60;
+    const currentAverageData = await calculateAveragePerOrder(
+      filter,
+      userShopId
+    );
+    const previousAverageData = await calculateAveragePerOrder(
+      filter * 2,
+      userShopId
+    );
 
     const comparisonData = currentAverageData.map((item, index) => ({
       label: item.label,
@@ -282,6 +320,7 @@ export const fetchAveragePerOrderCompare = async (req, res) => {
 
 export const getRetentionCurves = async (req, res) => {
   try {
+    const { userShopId } = req;
     const { filter, breakdown, format, customStartDate, customEndDate } =
       req.query;
 
@@ -297,6 +336,7 @@ export const getRetentionCurves = async (req, res) => {
       format,
       customStartDate,
       customEndDate,
+      userShopId,
     });
 
     res.json(retentionData);
@@ -308,6 +348,7 @@ export const getRetentionCurves = async (req, res) => {
 
 export const retentionCompare = async (req, res) => {
   try {
+    const { userShopId } = req;
     const { filter, breakdown, format, customStartDate, customEndDate } =
       req.query;
 
@@ -323,6 +364,7 @@ export const retentionCompare = async (req, res) => {
       format,
       customStartDate,
       customEndDate,
+      userShopId,
     });
     res.json(data);
   } catch (error) {
@@ -331,29 +373,46 @@ export const retentionCompare = async (req, res) => {
   }
 };
 
-
 export const getFollowUpPurchases = async (req, res) => {
   try {
     const { filter, order, timelineFilter } = req.query;
+    const { userShopId } = req;
 
     // تحقق من المعاملات المطلوبة
-    const validFilters = ['products', 'variants', 'categories'];
-    const validOrders = ['second_order', 'third_order', 'fourth_order'];
-    const validTimelineFilters = ['lastMonth', '3months', '6months'];
+    const validFilters = ["products", "variants", "categories"];
+    const validOrders = ["second_order", "third_order", "fourth_order"];
+    const validTimelineFilters = ["lastMonth", "3months", "6months"];
 
     if (!filter || !validFilters.includes(filter)) {
-      return res.status(400).json({ error: `Invalid or missing 'filter'. Must be one of: ${validFilters.join(', ')}` });
+      return res.status(400).json({
+        error: `Invalid or missing 'filter'. Must be one of: ${validFilters.join(
+          ", "
+        )}`,
+      });
     }
 
     if (!order || !validOrders.includes(order)) {
-      return res.status(400).json({ error: `Invalid or missing 'order'. Must be one of: ${validOrders.join(', ')}` });
+      return res.status(400).json({
+        error: `Invalid or missing 'order'. Must be one of: ${validOrders.join(
+          ", "
+        )}`,
+      });
     }
 
     if (!timelineFilter || !validTimelineFilters.includes(timelineFilter)) {
-      return res.status(400).json({ error: `Invalid or missing 'timelineFilter'. Must be one of: ${validTimelineFilters.join(', ')}` });
+      return res.status(400).json({
+        error: `Invalid or missing 'timelineFilter'. Must be one of: ${validTimelineFilters.join(
+          ", "
+        )}`,
+      });
     }
 
-    const followUpData = await calculateFollowUpPurchases(filter, order, timelineFilter);
+    const followUpData = await calculateFollowUpPurchases(
+      filter,
+      order,
+      timelineFilter,
+      userShopId
+    );
     res.status(200).json(followUpData);
   } catch (error) {
     console.error("Error fetching follow-up purchases:", error);
