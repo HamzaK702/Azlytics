@@ -3,35 +3,48 @@ import salesService from "../services/salesService.js";
 export const getSalesTrends = async (req, res) => {
   try {
     // Extract query parameters with default values
-    const { filter = 'one_month', customStartDate = null, customEndDate = null } = req.query;
+    const {
+      filter = "one_month",
+      customStartDate = null,
+      customEndDate = null,
+    } = req.query;
 
+    const { userShopId } = req;
     // Fetch sales trends from service
-    const salesTrends = await salesService.getSalesTrends(filter, customStartDate, customEndDate);
+    const salesTrends = await salesService.getSalesTrends(
+      filter,
+      customStartDate,
+      customEndDate,
+      userShopId
+    );
 
     // Send response
     return res.json(salesTrends);
   } catch (error) {
-    console.error('Error in getSalesTrendsController:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error in getSalesTrendsController:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-
 export const fetchSalesTrendComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate  } = req.query;
+    const { filter, customStartDate, customEndDate } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getSalesTrendsComparison(filter, customStartDate, customEndDate );
+    const comparisonData = await salesService.getSalesTrendsComparison(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     res.status(200).json({
       success: true,
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getSalesTrendComparison:', error.message);
+    console.error("Error in getSalesTrendComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch sales trend comparison',
+      message: "Failed to fetch sales trend comparison",
       error: error.message,
     });
   }
@@ -40,34 +53,44 @@ export const fetchSalesTrendComparison = async (req, res) => {
 export const fetchAOV = async (req, res) => {
   try {
     const { filter, customStartDate, customEndDate } = req.query;
+    const { userShopId } = req;
 
     if (!filter) {
-      return res.status(400).json({ error: 'Filter parameter is required' });
+      return res.status(400).json({ error: "Filter parameter is required" });
     }
 
-    const aovData = await salesService.getAOV(filter, customStartDate, customEndDate);
+    const aovData = await salesService.getAOV(
+      filter,
+      customStartDate,
+      customEndDate,
+      userShopId
+    );
     res.json(aovData);
   } catch (error) {
     console.error("Error calculating AOV:", error.message);
-    res.status(500).json({ error: 'Error calculating AOV' });
+    res.status(500).json({ error: "Error calculating AOV" });
   }
 };
 
 export const fetchAOVComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate  } = req.query;
+    const { filter, customStartDate, customEndDate } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getAOVComparison(filter, customStartDate, customEndDate );
+    const comparisonData = await salesService.getAOVComparison(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     res.status(200).json({
       success: true,
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getAOVComparison:', error.message);
+    console.error("Error in getAOVComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch AOV comparison',
+      message: "Failed to fetch AOV comparison",
       error: error.message,
     });
   }
@@ -76,20 +99,35 @@ export const fetchAOVComparison = async (req, res) => {
 export const getTopCities = async (req, res) => {
   try {
     const { filter, customStartDate, customEndDate, granularity } = req.query;
-    const topCitiesData = await salesService.getTopCities(filter, customStartDate, customEndDate, granularity);
+    const { userShopId } = req;
+
+    const topCitiesData = await salesService.getTopCities(
+      filter,
+      customStartDate,
+      customEndDate,
+      granularity,
+      userShopId
+    );
     res.status(200).json(topCitiesData);
   } catch (error) {
-    console.error('Error fetching top cities:', error.message);
-    res.status(500).json({ message: 'An error occurred while fetching top cities.' });
+    console.error("Error fetching top cities:", error.message);
+    res
+      .status(500)
+      .json({ message: "An error occurred while fetching top cities." });
   }
 };
 
 export const getTopCitiesComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate , granularity } = req.query;
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getTopCitiesComparison(filter, customStartDate, customEndDate , granularity);
+    const comparisonData = await salesService.getTopCitiesComparison(
+      filter,
+      customStartDate,
+      customEndDate,
+      granularity
+    );
 
     // Send the comparison data in the response
     res.status(200).json({
@@ -97,10 +135,10 @@ export const getTopCitiesComparison = async (req, res) => {
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getTopCitiesComparison:', error.message);
+    console.error("Error in getTopCitiesComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch top cities comparison',
+      message: "Failed to fetch top cities comparison",
       error: error.message,
     });
   }
@@ -109,104 +147,125 @@ export const getTopCitiesComparison = async (req, res) => {
 export const getTopSKUs = async (req, res) => {
   try {
     const { filter, customStartDate, customEndDate, granularity } = req.query;
-    const skusData = await salesService.getTopSKUs(filter, customStartDate, customEndDate, granularity);
+    const skusData = await salesService.getTopSKUs(
+      filter,
+      customStartDate,
+      customEndDate,
+      granularity
+    );
     res.status(200).json(skusData);
   } catch (error) {
-    console.error('Error fetching top SKUs:', error.message);
-    res.status(500).json({ message: 'An error occurred while fetching top SKUs.' });
+    console.error("Error fetching top SKUs:", error.message);
+    res
+      .status(500)
+      .json({ message: "An error occurred while fetching top SKUs." });
   }
 };
 
 export const getGrossSales = async (req, res) => {
   try {
-      const totalGrossSales = await salesService.calculateGrossSales();
-      res.status(200).json({ totalGrossSales });
+    const totalGrossSales = await salesService.calculateGrossSales();
+    res.status(200).json({ totalGrossSales });
   } catch (error) {
-      console.error('Error in getGrossSales controller:', error);
-      res.status(500).json({ message: 'Failed to calculate Gross Sales', error });
+    console.error("Error in getGrossSales controller:", error);
+    res.status(500).json({ message: "Failed to calculate Gross Sales", error });
   }
 };
 
 export const getTotalRefunds = async (req, res) => {
   try {
-      const totalRefunds = await salesService.calculateTotalRefunds();
-      res.json({ totalRefunds });
+    const totalRefunds = await salesService.calculateTotalRefunds();
+    res.json({ totalRefunds });
   } catch (error) {
-      res.status(500).json({ error: 'Failed to calculate total refunds' });
+    res.status(500).json({ error: "Failed to calculate total refunds" });
   }
 };
 
-
 export const getTotalTaxes = async (req, res) => {
   try {
-      const totalTaxes = await salesService.calculateTotalTaxes();
-      res.json({ totalTaxes });
+    const totalTaxes = await salesService.calculateTotalTaxes();
+    res.json({ totalTaxes });
   } catch (error) {
-      res.status(500).json({ error: 'Failed to calculate total taxes' });
+    res.status(500).json({ error: "Failed to calculate total taxes" });
   }
 };
 
 export const getTotalFees = async (req, res) => {
   try {
-      const totalFees = await salesService.calculateTotalFees();
-      res.json({ totalFees });
+    const totalFees = await salesService.calculateTotalFees();
+    res.json({ totalFees });
   } catch (error) {
-      res.status(500).json({ error: 'Failed to calculate total fees' });
+    res.status(500).json({ error: "Failed to calculate total fees" });
   }
 };
 
 export const getTotalShippingCost = async (req, res) => {
   try {
-      const totalShippingCost = await salesService.calculateTotalShippingCost();
-      res.json({ totalShippingCost });
+    const totalShippingCost = await salesService.calculateTotalShippingCost();
+    res.json({ totalShippingCost });
   } catch (error) {
-      res.status(500).json({ error: 'Failed to calculate total shipping cost' });
+    res.status(500).json({ error: "Failed to calculate total shipping cost" });
   }
 };
-
 
 export const getTotalAdSpend = async (req, res) => {
   try {
     const totalAdSpend = await salesService.calculateTotalAdSpend();
     return res.status(200).json({ totalAdSpend });
   } catch (error) {
-    return res.status(500).json({ message: 'Error calculating total ad spend', error: error.message });
+    return res.status(500).json({
+      message: "Error calculating total ad spend",
+      error: error.message,
+    });
   }
 };
 
 export const getTotalAdSpendByDate = async (req, res) => {
   try {
     const { filter, customStartDate, customEndDate } = req.query;
+    const { userShopId } = req;
 
-    if (filter === 'custom_date_range') {
+    if (filter === "custom_date_range") {
       if (!customStartDate || !customEndDate) {
-        return res.status(400).json({ error: 'Custom start and end dates are required for the custom_date_range filter' });
+        return res.status(400).json({
+          error:
+            "Custom start and end dates are required for the custom_date_range filter",
+        });
       }
     }
 
-    const result = await salesService.calculateTotalAdSpendByDate(filter, customStartDate, customEndDate);
+    const result = await salesService.calculateTotalAdSpendByDate(
+      filter,
+      customStartDate,
+      customEndDate,
+      userShopId
+    );
     res.json(result);
   } catch (error) {
-    console.error('Error in getAdSpend controller:', error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error in getAdSpend controller:", error.message);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
 export const fetchTotalAdSpendComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate  } = req.query;
+    const { filter, customStartDate, customEndDate } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getTotalAdSpendComparison(filter, customStartDate, customEndDate );
+    const comparisonData = await salesService.getTotalAdSpendComparison(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     res.status(200).json({
       success: true,
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getTopCitiesComparison:', error.message);
+    console.error("Error in getTopCitiesComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch top cities comparison',
+      message: "Failed to fetch top cities comparison",
       error: error.message,
     });
   }
@@ -215,21 +274,31 @@ export const fetchTotalAdSpendComparison = async (req, res) => {
 export const getBlendedCAC = async (req, res) => {
   const { filter, customStartDate, customEndDate } = req.query;
 
+  const { userShopId } = req;
+
   try {
-    const result = await salesService.calculateBlendedCAC(filter, customStartDate, customEndDate);
+    const result = await salesService.calculateBlendedCAC(
+      filter,
+      customStartDate,
+      customEndDate,
+      userShopId
+    );
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-
 };
 
 export const fetchBlendedCACComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate , granularity } = req.query;
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getBlendedCACComparison(filter, customStartDate, customEndDate);
+    const comparisonData = await salesService.getBlendedCACComparison(
+      filter,
+      customStartDate,
+      customEndDate
+    );
 
     // Send the comparison data in the response
     res.status(200).json({
@@ -237,37 +306,33 @@ export const fetchBlendedCACComparison = async (req, res) => {
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getBlendedCACComparison:', error.message);
+    console.error("Error in getBlendedCACComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch Blended CAC comparison',
+      message: "Failed to fetch Blended CAC comparison",
       error: error.message,
     });
   }
 };
-
-
 
 export const getTotalSales = async (req, res) => {
   try {
     const totalSales = await salesService.calculateTotalSales();
     res.status(200).json({ totalSales });
   } catch (error) {
-    console.error('Error in getTotalSales controller:', error);
-    res.status(500).json({ message: 'Failed to calculate Total Sales', error });
+    console.error("Error in getTotalSales controller:", error);
+    res.status(500).json({ message: "Failed to calculate Total Sales", error });
   }
 };
-
 
 export const getGrossProfitBreakdown = async (req, res) => {
   try {
-      const breakdown = await salesService.calculateGrossProfitBreakdown();
-      res.status(200).json(breakdown);
+    const breakdown = await salesService.calculateGrossProfitBreakdown();
+    res.status(200).json(breakdown);
   } catch (error) {
-      res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
-
 
 export const getProductProfitability = async (req, res) => {
   try {
@@ -284,13 +349,15 @@ export const getProductProfitability = async (req, res) => {
   }
 };
 
-
 export const getLeastProfitableProducts = async (req, res) => {
   try {
-    const leastProfitableProducts = await salesService.calculateLeastProfitableProducts();
+    const leastProfitableProducts =
+      await salesService.calculateLeastProfitableProducts();
     res.json(leastProfitableProducts);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch least profitable products" });
+    res
+      .status(500)
+      .json({ error: "Failed to fetch least profitable products" });
   }
 };
 
@@ -303,14 +370,19 @@ export const getBestSellers = async (req, res) => {
   }
 };
 
-
 export const getBlendedROAS = async (req, res) => {
   try {
     // Extract filter, customStartDate, and customEndDate from query parameters
     const { filter, customStartDate, customEndDate } = req.query;
+    const { userShopId } = req;
 
     // Call the service function to calculate Blended ROAS
-    const result = await salesService.calculateBlendedROAS(filter, customStartDate, customEndDate);
+    const result = await salesService.calculateBlendedROAS(
+      filter,
+      customStartDate,
+      customEndDate,
+      userShopId
+    );
 
     // Send the result as a JSON response
     res.status(200).json({
@@ -318,10 +390,10 @@ export const getBlendedROAS = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('Error in getBlendedROAS:', error.message);
+    console.error("Error in getBlendedROAS:", error.message);
     res.status(500).json({
       success: false,
-      message: 'An error occurred while calculating Blended ROAS',
+      message: "An error occurred while calculating Blended ROAS",
       error: error.message,
     });
   }
@@ -329,10 +401,14 @@ export const getBlendedROAS = async (req, res) => {
 
 export const fetchBlendedROASComparison = async (req, res) => {
   try {
-    const { filter, customStartDate, customEndDate , granularity } = req.query;
+    const { filter, customStartDate, customEndDate, granularity } = req.query;
 
     // Call the service function to get the comparison data
-    const comparisonData = await salesService.getBlendedROASComparison(filter, customStartDate, customEndDate);
+    const comparisonData = await salesService.getBlendedROASComparison(
+      filter,
+      customStartDate,
+      customEndDate
+    );
 
     // Send the comparison data in the response
     res.status(200).json({
@@ -340,17 +416,14 @@ export const fetchBlendedROASComparison = async (req, res) => {
       data: comparisonData,
     });
   } catch (error) {
-    console.error('Error in getBlendedROASComparison:', error.message);
+    console.error("Error in getBlendedROASComparison:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch Blended ROAS comparison',
+      message: "Failed to fetch Blended ROAS comparison",
       error: error.message,
     });
   }
 };
-
-
-
 
 // export const getDailyAdSpendForPastThreeMonths = async (req, res) => {
 //   try {

@@ -1,11 +1,9 @@
-import Order from "./../models/BulkTables/BulkOrder/order.js";
-import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
-import Product from "./../models/BulkTables/BulkProduct/product.js";
-import LineItem from "./../models/BulkTables/BulkCustomer/lineItem.js";
-import MetaAdInsights from "./../models/metaAdInsightModel.js";
 import moment from "moment";
-
-
+import mongoose from "mongoose";
+import Customer from "./../models/BulkTables/BulkCustomer/customer.js";
+import Order from "./../models/BulkTables/BulkOrder/order.js";
+import Product from "./../models/BulkTables/BulkProduct/product.js";
+import MetaAdInsights from "./../models/metaAdInsightModel.js";
 
 export const getDateRange = (filter, customStartDate, customEndDate) => {
   const now = new Date();
@@ -13,44 +11,46 @@ export const getDateRange = (filter, customStartDate, customEndDate) => {
   let endDate;
 
   // Set start and end dates based on filter
-  if (filter === 'yesterday') {
+  if (filter === "yesterday") {
     startDate = new Date(now);
     startDate.setDate(now.getDate() - 1);
     endDate = startDate;
-  } else if (filter === 'one_week') {
+  } else if (filter === "one_week") {
     endDate = new Date(now);
     endDate.setDate(now.getDate() - 1);
     startDate = new Date(endDate);
     startDate.setDate(endDate.getDate() - 7);
-  } else if (filter === 'one_month') {
-    endDate = new Date(now)
-    endDate.setDate(now.getDate() - 1)
+  } else if (filter === "one_month") {
+    endDate = new Date(now);
+    endDate.setDate(now.getDate() - 1);
     startDate = new Date(endDate);
     startDate.setMonth(endDate.getMonth() - 1);
-  } else if (filter === 'three_months') {
+  } else if (filter === "three_months") {
     startDate = new Date(now);
     startDate.setMonth(now.getMonth() - 3);
     endDate = now;
-  } else if (filter === 'six_months') {
+  } else if (filter === "six_months") {
     startDate = new Date(now);
     startDate.setMonth(now.getMonth() - 6);
     endDate = now;
-  } else if (filter === 'twelve_months') {
+  } else if (filter === "twelve_months") {
     startDate = new Date(now);
     startDate.setFullYear(now.getFullYear() - 1);
     endDate = now;
-  } else if (filter === 'custom_date_range') {
+  } else if (filter === "custom_date_range") {
     if (!customStartDate || !customEndDate) {
-      throw new Error('Custom start and end dates are required for custom_date_range filter');
+      throw new Error(
+        "Custom start and end dates are required for custom_date_range filter"
+      );
     }
     startDate = new Date(customStartDate);
     endDate = new Date(customEndDate);
   } else {
-    throw new Error('Invalid filter specified');
+    throw new Error("Invalid filter specified");
   }
 
   // Set the time for endDate to the end of the day
-  if (filter !== 'yesterday' && filter !== 'custom_date_range') {
+  if (filter !== "yesterday" && filter !== "custom_date_range") {
     endDate.setHours(23, 59, 59, 999);
   }
 
@@ -72,7 +72,7 @@ const generateDateArray = (startDate, endDate) => {
 const generateMonthArray = (startDate, endDate) => {
   const months = [];
   let currentDate = new Date(startDate);
-  
+
   while (currentDate <= endDate) {
     months.push(new Date(currentDate));
     currentDate.setMonth(currentDate.getMonth() + 1);
@@ -88,7 +88,7 @@ const generateDailyPeriods = (startDate, endDate) => {
   let currentDate = new Date(startDate);
 
   while (currentDate <= endDate) {
-    periods.push(currentDate.toISOString().split('T')[0]);
+    periods.push(currentDate.toISOString().split("T")[0]);
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
@@ -99,16 +99,20 @@ const generateDailyPeriods = (startDate, endDate) => {
 const generateWeeklyPeriods = (startDate, endDate) => {
   const periods = [];
   let currentDate = new Date(startDate);
-  
+
   // Align start date to the nearest previous Monday
-  currentDate.setDate(currentDate.getDate() - (currentDate.getDay() + 6) % 7);
+  currentDate.setDate(currentDate.getDate() - ((currentDate.getDay() + 6) % 7));
 
   while (currentDate <= endDate) {
     const weekStart = new Date(currentDate);
     weekStart.setDate(currentDate.getDate() - weekStart.getDay() + 1); // Align to Monday
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6); // End of the week (Sunday)
-    periods.push(`${weekStart.toISOString().split('T')[0]} - ${weekEnd.toISOString().split('T')[0]}`);
+    periods.push(
+      `${weekStart.toISOString().split("T")[0]} - ${
+        weekEnd.toISOString().split("T")[0]
+      }`
+    );
     currentDate.setDate(currentDate.getDate() + 7);
   }
 
@@ -121,26 +125,43 @@ const generateQuarterlyPeriods = (startDate, endDate) => {
   let currentDate = new Date(startDate);
 
   while (currentDate <= endDate) {
-    const quarterStart = new Date(currentDate.getFullYear(), Math.floor(currentDate.getMonth() / 3) * 3, 1);
-    const quarterEnd = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 3, 0);
-    periods.push(`${quarterStart.toISOString().split('T')[0]} - ${quarterEnd.toISOString().split('T')[0]}`);
+    const quarterStart = new Date(
+      currentDate.getFullYear(),
+      Math.floor(currentDate.getMonth() / 3) * 3,
+      1
+    );
+    const quarterEnd = new Date(
+      quarterStart.getFullYear(),
+      quarterStart.getMonth() + 3,
+      0
+    );
+    periods.push(
+      `${quarterStart.toISOString().split("T")[0]} - ${
+        quarterEnd.toISOString().split("T")[0]
+      }`
+    );
     currentDate.setMonth(currentDate.getMonth() + 3);
   }
 
   return periods;
 };
 
-
-const aggregateTotalSales = async (startDate, endDate, groupBy) => {
+const aggregateTotalSales = async (startDate, endDate, groupBy, userShopId) => {
   const matchStage = {
     createdAt: {
       $gte: startDate,
       $lte: endDate,
     },
+    userShopId: new mongoose.Types.ObjectId(userShopId),
   };
 
   const groupStage = {
-    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    _id: {
+      $dateToString: {
+        format: groupBy === "day" ? "%Y-%m-%d" : "%Y-%m",
+        date: "$createdAt",
+      },
+    },
     totalSales: { $sum: { $toDouble: "$totalPrice" } },
     totalOrders: { $sum: 1 },
   };
@@ -161,12 +182,18 @@ const aggregateTotalSales = async (startDate, endDate, groupBy) => {
   return totalSales;
 };
 
-const aggregateNewCustomerSales = async (startDate, endDate, groupBy) => {
+const aggregateNewCustomerSales = async (
+  startDate,
+  endDate,
+  groupBy,
+  userShopId
+) => {
   const matchStage = {
     createdAt: {
       $gte: startDate,
       $lte: endDate,
     },
+    userShopId: new mongoose.Types.ObjectId(userShopId),
   };
 
   const lookupStage = {
@@ -195,7 +222,12 @@ const aggregateNewCustomerSales = async (startDate, endDate, groupBy) => {
   const matchNewCustomer = { $match: { isNewCustomer: true } };
 
   const groupStage = {
-    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    _id: {
+      $dateToString: {
+        format: groupBy === "day" ? "%Y-%m-%d" : "%Y-%m",
+        date: "$createdAt",
+      },
+    },
     newCustomerSales: { $sum: "$totalPrice" },
     newCustomerOrders: { $sum: 1 },
   };
@@ -220,12 +252,18 @@ const aggregateNewCustomerSales = async (startDate, endDate, groupBy) => {
   return newCustomerSales;
 };
 
-const aggregateReturningCustomerSales = async (startDate, endDate, groupBy) => {
+const aggregateReturningCustomerSales = async (
+  startDate,
+  endDate,
+  groupBy,
+  userShopId
+) => {
   const matchStage = {
     createdAt: {
       $gte: startDate,
       $lte: endDate,
     },
+    userShopId: new mongoose.Types.ObjectId(userShopId),
   };
 
   const lookupStage = {
@@ -254,7 +292,12 @@ const aggregateReturningCustomerSales = async (startDate, endDate, groupBy) => {
   const matchReturningCustomer = { $match: { isReturningCustomer: true } };
 
   const groupStage = {
-    _id: { $dateToString: { format: groupBy === 'day' ? "%Y-%m-%d" : "%Y-%m", date: "$createdAt" } },
+    _id: {
+      $dateToString: {
+        format: groupBy === "day" ? "%Y-%m-%d" : "%Y-%m",
+        date: "$createdAt",
+      },
+    },
     returningCustomerSales: { $sum: "$totalPrice" },
     returningCustomerOrders: { $sum: 1 },
   };
@@ -279,75 +322,114 @@ const aggregateReturningCustomerSales = async (startDate, endDate, groupBy) => {
   return returningCustomerSales;
 };
 
-
-
 // Combines sales trends into a single dataset
-const getSalesTrends = async (filter, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+const getSalesTrends = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
+  const { startDate, endDate } = getDateRange(
+    filter,
+    customStartDate,
+    customEndDate
+  );
   const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-  const groupBy = dayDiff <= 61 ? 'day' : 'month';
+  const groupBy = dayDiff <= 61 ? "day" : "month";
 
-  const [totalSales, newCustomerSales, returningCustomerSales] = await Promise.all([
-    aggregateTotalSales(startDate, endDate, groupBy),
-    aggregateNewCustomerSales(startDate, endDate, groupBy),
-    aggregateReturningCustomerSales(startDate, endDate, groupBy),
-  ]);
+  const [totalSales, newCustomerSales, returningCustomerSales] =
+    await Promise.all([
+      aggregateTotalSales(startDate, endDate, groupBy, userShopId),
+      aggregateNewCustomerSales(startDate, endDate, groupBy, userShopId),
+      aggregateReturningCustomerSales(startDate, endDate, groupBy, userShopId),
+    ]);
 
-  const dateArray = groupBy === 'day'
-    ? generateDateArray(startDate, endDate)
-    : generateMonthArray(startDate, endDate);
+  const dateArray =
+    groupBy === "day"
+      ? generateDateArray(startDate, endDate)
+      : generateMonthArray(startDate, endDate);
 
-  const dateMap = new Map(dateArray.map(date => {
-    const dateKey = groupBy === 'day'
-      ? date.toISOString().split('T')[0]
-      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const dateMap = new Map(
+    dateArray.map((date) => {
+      const dateKey =
+        groupBy === "day"
+          ? date.toISOString().split("T")[0]
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}`;
 
-    return [dateKey, {
-      orderDate: dateKey,
-      totalSales: 0,
-      newCustomerSales: 0,
-      returningCustomerSales: 0
-    }];
-  }));
+      return [
+        dateKey,
+        {
+          orderDate: dateKey,
+          totalSales: 0,
+          newCustomerSales: 0,
+          returningCustomerSales: 0,
+        },
+      ];
+    })
+  );
 
-  totalSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  totalSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
 
     if (dateMap.has(formattedDate)) {
       dateMap.get(formattedDate).totalSales = sale.totalSales;
     }
   });
 
-  newCustomerSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  newCustomerSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
 
     if (dateMap.has(formattedDate)) {
       dateMap.get(formattedDate).newCustomerSales = sale.newCustomerSales;
     }
   });
 
-  returningCustomerSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  returningCustomerSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
 
     if (dateMap.has(formattedDate)) {
-      dateMap.get(formattedDate).returningCustomerSales = sale.returningCustomerSales;
+      dateMap.get(formattedDate).returningCustomerSales =
+        sale.returningCustomerSales;
     }
   });
 
   return Array.from(dateMap.values());
 };
 
-
-export const getSalesTrendsComparison = async (filter, customStartDate, customEndDate) => {
+export const getSalesTrendsComparison = async (
+  filter,
+  customStartDate,
+  customEndDate
+) => {
   try {
-    const currentPeriodData = await getSalesTrends(filter, customStartDate, customEndDate);
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const currentPeriodData = await getSalesTrends(
+      filter,
+      customStartDate,
+      customEndDate
+    );
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
 
     const previousStartDate = new Date(startDate);
@@ -357,7 +439,7 @@ export const getSalesTrendsComparison = async (filter, customStartDate, customEn
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
 
     const previousPeriodData = await getSalesTrends(
-      'custom_date_range',
+      "custom_date_range",
       previousStartDate,
       previousEndDate
     );
@@ -382,9 +464,18 @@ export const getSalesTrendsComparison = async (filter, customStartDate, customEn
       currentPeriodData: currentPeriodData,
       previousPeriodData: previousPeriodData,
       percentageComparison: {
-        totalSales: calculatePercentageChange(currentSalesAggregate.totalSales, previousSalesAggregate.totalSales),
-        newCustomerSales: calculatePercentageChange(currentSalesAggregate.newCustomerSales, previousSalesAggregate.newCustomerSales),
-        returningCustomerSales: calculatePercentageChange(currentSalesAggregate.returningCustomerSales, previousSalesAggregate.returningCustomerSales),
+        totalSales: calculatePercentageChange(
+          currentSalesAggregate.totalSales,
+          previousSalesAggregate.totalSales
+        ),
+        newCustomerSales: calculatePercentageChange(
+          currentSalesAggregate.newCustomerSales,
+          previousSalesAggregate.newCustomerSales
+        ),
+        returningCustomerSales: calculatePercentageChange(
+          currentSalesAggregate.returningCustomerSales,
+          previousSalesAggregate.returningCustomerSales
+        ),
       },
     };
 
@@ -394,69 +485,113 @@ export const getSalesTrendsComparison = async (filter, customStartDate, customEn
   }
 };
 
-
-
-
 // Computes the average order value (AOV) for each date
-const getAOV = async (filter, customStartDate, customEndDate) => {
-  const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+const getAOV = async (filter, customStartDate, customEndDate, userShopId) => {
+  const { startDate, endDate } = getDateRange(
+    filter,
+    customStartDate,
+    customEndDate
+  );
   const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-  const groupBy = dayDiff <= 61 ? 'day' : 'month';
+  const groupBy = dayDiff <= 61 ? "day" : "month";
 
-  const totalSales = await aggregateTotalSales(startDate, endDate, groupBy);
-  const newCustomerSales = await aggregateNewCustomerSales(startDate, endDate, groupBy);
-  const returningCustomerSales = await aggregateReturningCustomerSales(startDate, endDate, groupBy);
+  const totalSales = await aggregateTotalSales(
+    startDate,
+    endDate,
+    groupBy,
+    userShopId
+  );
+  const newCustomerSales = await aggregateNewCustomerSales(
+    startDate,
+    endDate,
+    groupBy,
+    userShopId
+  );
+  const returningCustomerSales = await aggregateReturningCustomerSales(
+    startDate,
+    endDate,
+    groupBy,
+    userShopId
+  );
 
-  console.log('Total Sales:', totalSales);
-  console.log('New Customer Sales:', newCustomerSales);
-  console.log('Returning Customer Sales:', returningCustomerSales);
+  console.log("Total Sales:", totalSales);
+  console.log("New Customer Sales:", newCustomerSales);
+  console.log("Returning Customer Sales:", returningCustomerSales);
 
   let dateArray;
 
-  if (groupBy === 'day') {
+  if (groupBy === "day") {
     dateArray = generateDateArray(startDate, endDate);
   } else {
     dateArray = generateMonthArray(startDate, endDate);
   }
 
   // Create a dateMap with all dates initialized to 0
-  const dateMap = new Map(dateArray.map(date => {
-    const dateKey = groupBy === 'day' ? date.toISOString().split('T')[0] : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    return [dateKey, {
-      orderDate: dateKey,
-      combinedAOV: 0,
-      newCustomerAOV: 0,
-      returningCustomerAOV: 0
-    }];
-  }));
+  const dateMap = new Map(
+    dateArray.map((date) => {
+      const dateKey =
+        groupBy === "day"
+          ? date.toISOString().split("T")[0]
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}`;
+      return [
+        dateKey,
+        {
+          orderDate: dateKey,
+          combinedAOV: 0,
+          newCustomerAOV: 0,
+          returningCustomerAOV: 0,
+        },
+      ];
+    })
+  );
 
   // Update the map with data from totalSales
-  totalSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  totalSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
     if (dateMap.has(formattedDate)) {
-      dateMap.get(formattedDate).combinedAOV = parseFloat((sale.totalSales / (sale.totalOrders || 1)).toFixed(2));
+      dateMap.get(formattedDate).combinedAOV = parseFloat(
+        (sale.totalSales / (sale.totalOrders || 1)).toFixed(2)
+      );
     }
   });
 
   // Update the map with data from newCustomerSales
-  newCustomerSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  newCustomerSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
     if (dateMap.has(formattedDate)) {
-      dateMap.get(formattedDate).newCustomerAOV = parseFloat((sale.newCustomerSales / (sale.newCustomerOrders || 1)).toFixed(2));
+      dateMap.get(formattedDate).newCustomerAOV = parseFloat(
+        (sale.newCustomerSales / (sale.newCustomerOrders || 1)).toFixed(2)
+      );
     }
   });
 
   // Update the map with data from returningCustomerSales
-  returningCustomerSales.forEach(sale => {
-    const formattedDate = groupBy === 'day'
-      ? new Date(sale.orderDate).toISOString().split('T')[0]
-      : `${new Date(sale.orderDate).getFullYear()}-${String(new Date(sale.orderDate).getMonth() + 1).padStart(2, '0')}`;
+  returningCustomerSales.forEach((sale) => {
+    const formattedDate =
+      groupBy === "day"
+        ? new Date(sale.orderDate).toISOString().split("T")[0]
+        : `${new Date(sale.orderDate).getFullYear()}-${String(
+            new Date(sale.orderDate).getMonth() + 1
+          ).padStart(2, "0")}`;
     if (dateMap.has(formattedDate)) {
-      dateMap.get(formattedDate).returningCustomerAOV = parseFloat((sale.returningCustomerSales / (sale.returningCustomerOrders || 1)).toFixed(2));
+      dateMap.get(formattedDate).returningCustomerAOV = parseFloat(
+        (
+          sale.returningCustomerSales / (sale.returningCustomerOrders || 1)
+        ).toFixed(2)
+      );
     }
   });
 
@@ -464,10 +599,22 @@ const getAOV = async (filter, customStartDate, customEndDate) => {
   return Array.from(dateMap.values());
 };
 
-export const getAOVComparison = async (filter, customStartDate, customEndDate) => {
+export const getAOVComparison = async (
+  filter,
+  customStartDate,
+  customEndDate
+) => {
   try {
-    const currentPeriodAOV = await getAOV(filter, customStartDate, customEndDate);
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const currentPeriodAOV = await getAOV(
+      filter,
+      customStartDate,
+      customEndDate
+    );
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const dayDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
 
     const previousStartDate = new Date(startDate);
@@ -476,7 +623,7 @@ export const getAOVComparison = async (filter, customStartDate, customEndDate) =
     previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
     const previousPeriodAOV = await getAOV(
-      'custom_date_range',
+      "custom_date_range",
       previousStartDate,
       previousEndDate
     );
@@ -497,9 +644,18 @@ export const getAOVComparison = async (filter, customStartDate, customEndDate) =
       currentPeriodAOV: currentPeriodAOV,
       previousPeriodAOV: previousPeriodAOV,
       percentageComparison: {
-        combinedAOV: calculatePercentageChange(currentAOVAggregate.combinedAOV, previousAOVAggregate.combinedAOV),
-        newCustomerAOV: calculatePercentageChange(currentAOVAggregate.newCustomerAOV, previousAOVAggregate.newCustomerAOV),
-        returningCustomerAOV: calculatePercentageChange(currentAOVAggregate.returningCustomerAOV, previousAOVAggregate.returningCustomerAOV),
+        combinedAOV: calculatePercentageChange(
+          currentAOVAggregate.combinedAOV,
+          previousAOVAggregate.combinedAOV
+        ),
+        newCustomerAOV: calculatePercentageChange(
+          currentAOVAggregate.newCustomerAOV,
+          previousAOVAggregate.newCustomerAOV
+        ),
+        returningCustomerAOV: calculatePercentageChange(
+          currentAOVAggregate.returningCustomerAOV,
+          previousAOVAggregate.returningCustomerAOV
+        ),
       },
     };
 
@@ -509,39 +665,31 @@ export const getAOVComparison = async (filter, customStartDate, customEndDate) =
   }
 };
 
-
-
-
-
-
-
-
-
 const breakCityDataIntoWeeks = (data) => {
   const weeklyData = [];
-  
+
   // Convert object to array of entries (date, cities)
   const entries = Object.entries(data);
-  
+
   entries.forEach(([date, cities]) => {
-    const weekStart = moment(date).startOf('isoWeek').format('YYYY-MM-DD');
-    const existingWeek = weeklyData.find(week => week.date === weekStart);
-    
+    const weekStart = moment(date).startOf("isoWeek").format("YYYY-MM-DD");
+    const existingWeek = weeklyData.find((week) => week.date === weekStart);
+
     let totalCount = 0;
     if (cities) {
       totalCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
     }
-    
+
     if (existingWeek) {
       existingWeek.totalCount += totalCount;
     } else {
       weeklyData.push({
         date: weekStart,
-        totalCount: totalCount
+        totalCount: totalCount,
       });
     }
 
-    console.log(weeklyData , "weeklyData");
+    console.log(weeklyData, "weeklyData");
   });
 
   return weeklyData;
@@ -549,22 +697,27 @@ const breakCityDataIntoWeeks = (data) => {
 
 const breakCityDataIntoMonths = (data) => {
   const monthlyData = [];
-  
+
   // Convert object to array of entries (date, cities)
   const entries = Object.entries(data);
-  
+
   entries.forEach(([date, cities]) => {
-    const monthStart = moment(date).startOf('month').format('YYYY-MM-DD');
-    const existingMonth = monthlyData.find(month => month.date === monthStart);
-    
-    const dailyCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
-    
+    const monthStart = moment(date).startOf("month").format("YYYY-MM-DD");
+    const existingMonth = monthlyData.find(
+      (month) => month.date === monthStart
+    );
+
+    const dailyCount = Object.values(cities).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+
     if (existingMonth) {
       existingMonth.totalCount += dailyCount;
     } else {
       monthlyData.push({
         date: monthStart,
-        totalCount: dailyCount
+        totalCount: dailyCount,
       });
     }
   });
@@ -574,26 +727,31 @@ const breakCityDataIntoMonths = (data) => {
 
 const breakCityDataIntoQuarters = (data) => {
   const quarterlyData = [];
-  
+
   // Convert object to array of entries (date, cities)
   const entries = Object.entries(data);
-  
+
   entries.forEach(([date, cities]) => {
     const momentDate = moment(date);
     const quarter = Math.ceil(momentDate.month() / 3) + 1;
     const year = momentDate.year();
     const quarterStart = `${year}-Q${quarter}`;
-    
-    const existingQuarter = quarterlyData.find(quarter => quarter.date === quarterStart);
-    
-    const dailyCount = Object.values(cities).reduce((sum, count) => sum + count, 0);
-    
+
+    const existingQuarter = quarterlyData.find(
+      (quarter) => quarter.date === quarterStart
+    );
+
+    const dailyCount = Object.values(cities).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+
     if (existingQuarter) {
       existingQuarter.totalCount += dailyCount;
     } else {
       quarterlyData.push({
         date: quarterStart,
-        totalCount: dailyCount
+        totalCount: dailyCount,
       });
     }
   });
@@ -601,12 +759,19 @@ const breakCityDataIntoQuarters = (data) => {
   return quarterlyData;
 };
 
-
-
-
-const getTopCities = async (filter, customStartDate, customEndDate, granularity) => {
+const getTopCities = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  granularity,
+  userShopId
+) => {
   try {
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
@@ -614,9 +779,10 @@ const getTopCities = async (filter, customStartDate, customEndDate, granularity)
     const customers = await Customer.find(
       {
         createdAt: { $gte: startDateISO, $lte: endDateISO },
-        numberOfOrders: '1',
+        numberOfOrders: "1",
+        userShopId,
       },
-      'createdAt defaultAddress.city'
+      "createdAt defaultAddress.city"
     );
 
     // Initialize an object to hold city data
@@ -631,17 +797,19 @@ const getTopCities = async (filter, customStartDate, customEndDate, granularity)
 
     const formatPeriod = (date) => {
       switch (granularity) {
-        case 'week':
+        case "week":
           const weekNumber = getWeekNumber(date);
-          return `${date.getFullYear()}-W${('0' + weekNumber).slice(-2)}`; // YYYY-WNN
-        case 'month':
-          return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}`; // YYYY-MM
-        case 'quarter':
+          return `${date.getFullYear()}-W${("0" + weekNumber).slice(-2)}`; // YYYY-WNN
+        case "month":
+          return `${date.getFullYear()}-${("0" + (date.getMonth() + 1)).slice(
+            -2
+          )}`; // YYYY-MM
+        case "quarter":
           const quarter = Math.floor(date.getMonth() / 3) + 1;
           return `${date.getFullYear()}-Q${quarter}`; // YYYY-QN
-        case 'day':
+        case "day":
         default:
-          return date.toISOString().split('T')[0]; // YYYY-MM-DD
+          return date.toISOString().split("T")[0]; // YYYY-MM-DD
       }
     };
 
@@ -704,18 +872,28 @@ const getTopCities = async (filter, customStartDate, customEndDate, granularity)
   }
 };
 
-
-
-
-
-
-export const getTopCitiesComparison = async (filter, customStartDate, customEndDate , granularity) => {
+export const getTopCitiesComparison = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  granularity
+) => {
   try {
     // Calculate current period data
-    const currentPeriodData = await getTopCities(filter, customStartDate, customEndDate , granularity);
+    const currentPeriodData = await getTopCities(
+      filter,
+      customStartDate,
+      customEndDate,
+      granularity
+    );
 
     // Calculate the previous period date range
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate , granularity);
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate,
+      granularity
+    );
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(endDate);
 
@@ -724,20 +902,33 @@ export const getTopCitiesComparison = async (filter, customStartDate, customEndD
     previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
 
-    console.log('Previous Start Date:', previousStartDate);
-    console.log('Previous End Date:', previousEndDate);
+    console.log("Previous Start Date:", previousStartDate);
+    console.log("Previous End Date:", previousEndDate);
 
-    const previousPeriodData = await getTopCities(filter="custom_date_range", previousStartDate, previousEndDate , granularity);
+    const previousPeriodData = await getTopCities(
+      (filter = "custom_date_range"),
+      previousStartDate,
+      previousEndDate,
+      granularity
+    );
 
     // Compare current and previous periods
     const comparison = {
-    
-      currentPeriodData:currentPeriodData,
-      previousPeriodData:previousPeriodData,
+      currentPeriodData: currentPeriodData,
+      previousPeriodData: previousPeriodData,
       percentageComparison: {
-        totalCustomers: calculatePercentageChange(currentPeriodData.totalUserCount, previousPeriodData.totalUserCount),
-        newCustomers: calculatePercentageChange(currentPeriodData.totalNewUserCount, previousPeriodData.totalNewUserCount),
-        returningCustomers: calculatePercentageChange(currentPeriodData.totalReturningUserCount, previousPeriodData.totalReturningUserCount),
+        totalCustomers: calculatePercentageChange(
+          currentPeriodData.totalUserCount,
+          previousPeriodData.totalUserCount
+        ),
+        newCustomers: calculatePercentageChange(
+          currentPeriodData.totalNewUserCount,
+          previousPeriodData.totalNewUserCount
+        ),
+        returningCustomers: calculatePercentageChange(
+          currentPeriodData.totalReturningUserCount,
+          previousPeriodData.totalReturningUserCount
+        ),
       },
     };
 
@@ -754,10 +945,19 @@ const calculatePercentageChange = (current, previous) => {
 };
 
 // salesService.js
- // salesService.js
-const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) => {
+// salesService.js
+const getTopSKUs = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  granularity
+) => {
   try {
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const startDateISO = startDate.toISOString();
     const endDateISO = endDate.toISOString();
 
@@ -766,36 +966,38 @@ const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) =
       {
         createdAt: { $gte: startDateISO, $lte: endDateISO },
       },
-      'id createdAt customer.id lineItems'
+      "id createdAt customer.id lineItems"
     );
 
     // Get unique customer IDs from orders
-    const customerIds = orders.map(order => order.customer?.id).filter(id => id);
+    const customerIds = orders
+      .map((order) => order.customer?.id)
+      .filter((id) => id);
     const uniqueCustomerIds = [...new Set(customerIds)];
 
     // Fetch customer data
     const customers = await Customer.find(
       { id: { $in: uniqueCustomerIds } },
-      'id numberOfOrders'
+      "id numberOfOrders"
     );
 
     // Build a map of customer ID to customer data
     const customerMap = {};
-    customers.forEach(customer => {
+    customers.forEach((customer) => {
       customerMap[customer.id] = customer;
     });
 
     // Filter for new customer orders
-    const newCustomerOrders = orders.filter(order => {
+    const newCustomerOrders = orders.filter((order) => {
       const customerId = order.customer?.id;
       const customer = customerMap[customerId];
-      return customer && customer.numberOfOrders === '1';
+      return customer && customer.numberOfOrders === "1";
     });
 
     // **Extract product IDs from line items**
     const productIds = [];
-    newCustomerOrders.forEach(order => {
-      order.lineItems.forEach(lineItem => {
+    newCustomerOrders.forEach((order) => {
+      order.lineItems.forEach((lineItem) => {
         const productId = lineItem.product?.id;
         if (productId) {
           productIds.push(productId);
@@ -809,12 +1011,12 @@ const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) =
     // **Fetch products by IDs**
     const products = await Product.find(
       { id: { $in: uniqueProductIds } },
-      'id sku'
+      "id sku"
     );
-    console.log(products)
+    console.log(products);
     // **Build a map of product ID to SKU**
     const productMap = {};
-    products.forEach(product => {
+    products.forEach((product) => {
       productMap[product.id] = product.sku;
     });
 
@@ -830,17 +1032,19 @@ const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) =
 
     const formatPeriod = (date) => {
       switch (granularity) {
-        case 'week':
+        case "week":
           const weekNumber = getWeekNumber(date);
-          return `${date.getFullYear()}-W${('0' + weekNumber).slice(-2)}`; // YYYY-WNN
-        case 'month':
-          return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}`; // YYYY-MM
-        case 'quarter':
+          return `${date.getFullYear()}-W${("0" + weekNumber).slice(-2)}`; // YYYY-WNN
+        case "month":
+          return `${date.getFullYear()}-${("0" + (date.getMonth() + 1)).slice(
+            -2
+          )}`; // YYYY-MM
+        case "quarter":
           const quarter = Math.floor(date.getMonth() / 3) + 1;
           return `${date.getFullYear()}-Q${quarter}`; // YYYY-QN
-        case 'day':
+        case "day":
         default:
-          return date.toISOString().split('T')[0]; // YYYY-MM-DD
+          return date.toISOString().split("T")[0]; // YYYY-MM-DD
       }
     };
 
@@ -910,11 +1114,6 @@ const getTopSKUs = async (filter, customStartDate, customEndDate, granularity) =
     throw new Error(error.message);
   }
 };
-
-
-
-
- 
 
 const calculateGrossSales = async () => {
   try {
@@ -1003,64 +1202,62 @@ const calculateTotalFees = async () => {
 
 const calculateTotalShippingCost = async () => {
   try {
-      const shippingCost = await Order.aggregate([
-          {
-              $group: {
-                  _id: null,
-                  totalShippingCost: {
-                      $sum: {
-                          $toDouble: "$totalShippingPriceSet.shopMoney.amount" 
-                      }
-                  }
-              }
-          }
-      ]);
-      return shippingCost[0]?.totalShippingCost || 0;
+    const shippingCost = await Order.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalShippingCost: {
+            $sum: {
+              $toDouble: "$totalShippingPriceSet.shopMoney.amount",
+            },
+          },
+        },
+      },
+    ]);
+    return shippingCost[0]?.totalShippingCost || 0;
   } catch (error) {
-      console.error('Error calculating total shipping cost:', error);
-      throw error;
+    console.error("Error calculating total shipping cost:", error);
+    throw error;
   }
 };
-
 
 const calculateTotalAdSpend = async () => {
   try {
     const result = await MetaAdInsights.aggregate([
       {
         $match: {
-          insights: { $ne: [] }
-        }
+          insights: { $ne: [] },
+        },
       },
-      { 
-        $unwind: "$insights"
+      {
+        $unwind: "$insights",
       },
       {
         $match: {
-          "insights.spend": { $gt: 0 } 
-        }
+          "insights.spend": { $gt: 0 },
+        },
       },
       {
         $group: {
-          _id: null, 
-          totalAdSpend: { $sum: "$insights.spend" } 
-        }
-      }
+          _id: null,
+          totalAdSpend: { $sum: "$insights.spend" },
+        },
+      },
     ]);
-    
+
     return result[0]?.totalAdSpend || 0;
   } catch (error) {
-    console.error('Error calculating total ad spend:', error);
+    console.error("Error calculating total ad spend:", error);
     throw error;
   }
 };
 
-
-
-
-
-
-
-const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDate) => {
+const calculateTotalAdSpendByDate = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
   try {
     const now = new Date();
     let startDate;
@@ -1068,57 +1265,67 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
     endDate.setDate(now.getDate() - 1); // Default endDate to yesterday
 
     // Set start and end dates based on filter
-    if (filter === 'yesterday') {
+    if (filter === "yesterday") {
       startDate = new Date(endDate);
-    } else if (filter === 'one_week') {
+    } else if (filter === "one_week") {
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 7);
-    } else if (filter === 'one_month') {
+    } else if (filter === "one_month") {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 1);
-    } else if (filter === 'three_months') {
+    } else if (filter === "three_months") {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 3);
-    } else if (filter === 'six_months') {
+    } else if (filter === "six_months") {
       startDate = new Date(now);
       startDate.setMonth(now.getMonth() - 6);
-    } else if (filter === 'twelve_months') {
+    } else if (filter === "twelve_months") {
       startDate = new Date(now);
       startDate.setFullYear(now.getFullYear() - 1);
-    } else if (filter === 'custom_date_range') {
+    } else if (filter === "custom_date_range") {
       if (!customStartDate || !customEndDate) {
-        throw new Error('Custom start and end dates are required for custom_date_range filter');
+        throw new Error(
+          "Custom start and end dates are required for custom_date_range filter"
+        );
       }
       startDate = new Date(customStartDate);
       endDate = new Date(customEndDate);
       endDate.setDate(endDate.getDate() - 1); // Exclude today's date for custom range as well
     } else {
-      throw new Error('Invalid filter specified');
+      throw new Error("Invalid filter specified");
     }
 
     // Calculate the difference in days between start and end date
-    const dayDifference = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    const dayDifference = Math.ceil(
+      (endDate - startDate) / (1000 * 60 * 60 * 24)
+    );
 
     // Define grouping format
     let groupBy;
     if (dayDifference <= 60) {
       groupBy = {
-        $dateToString: { format: "%Y-%m-%d", date: { $dateFromString: { dateString: "$date" } } }
+        $dateToString: {
+          format: "%Y-%m-%d",
+          date: { $dateFromString: { dateString: "$date" } },
+        },
       };
     } else {
       groupBy = {
-        $dateToString: { format: "%Y-%m", date: { $dateFromString: { dateString: "$date" } } }
+        $dateToString: {
+          format: "%Y-%m",
+          date: { $dateFromString: { dateString: "$date" } },
+        },
       };
     }
 
     // Convert dates to string format "YYYY-MM-DD"
-    const startDateString = startDate.toISOString().split('T')[0];
-    const endDateString = endDate.toISOString().split('T')[0];
+    const startDateString = startDate.toISOString().split("T")[0];
+    const endDateString = endDate.toISOString().split("T")[0];
 
-    console.log('Start Date:', startDateString);
-    console.log('End Date:', endDateString);
-    console.log('dayDifference:', dayDifference);
-    console.log('Group By:', groupBy.$dateToString.date?.$dateFromString);
+    console.log("Start Date:", startDateString);
+    console.log("End Date:", endDateString);
+    console.log("dayDifference:", dayDifference);
+    console.log("Group By:", groupBy.$dateToString.date?.$dateFromString);
 
     // Fetch total ad spend (regardless of date filter)
     const totalAdSpend = await MetaAdInsights.aggregate([
@@ -1142,18 +1349,18 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
       {
         $project: {
           date: groupBy,
-          spend: { $toDouble: "$insights.spend" } // Access spend from insights array
-        }
+          spend: { $toDouble: "$insights.spend" }, // Access spend from insights array
+        },
       },
       {
         $group: {
           _id: "$date",
-          totalSpendByDate: { $sum: "$spend" }
-        }
+          totalSpendByDate: { $sum: "$spend" },
+        },
       },
       {
-        $sort: { _id: 1 } // Sort by date ascending
-      }
+        $sort: { _id: 1 }, // Sort by date ascending
+      },
     ]);
 
     // Generate a list of all periods within the range
@@ -1166,13 +1373,13 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
         // Day-wise
         while (currentDate <= endDateMoment) {
           periods.push({ date: currentDate.format("YYYY-MM-DD"), spend: 0 });
-          currentDate.add(1, 'day');
+          currentDate.add(1, "day");
         }
       } else {
         // Month-wise
         while (currentDate <= endDateMoment) {
           periods.push({ date: currentDate.format("YYYY-MM"), spend: 0 });
-          currentDate.add(1, 'month');
+          currentDate.add(1, "month");
         }
       }
 
@@ -1181,8 +1388,8 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
 
     // Map ad spend data to the periods
     const allPeriods = generateAllPeriods();
-    adSpendByDate.forEach(item => {
-      const period = allPeriods.find(p => p.date === item._id);
+    adSpendByDate.forEach((item) => {
+      const period = allPeriods.find((p) => p.date === item._id);
       if (period) {
         period.spend = item.totalSpendByDate;
       }
@@ -1193,17 +1400,27 @@ const calculateTotalAdSpendByDate = async (filter, customStartDate, customEndDat
       adSpendByDate: allPeriods,
     };
   } catch (error) {
-    console.error('Error in calculateTotalAdSpendByDate:', error.message);
+    console.error("Error in calculateTotalAdSpendByDate:", error.message);
     throw error;
   }
 };
 
-
-export const getTotalAdSpendComparison = async (filter, customStartDate, customEndDate) => {
+export const getTotalAdSpendComparison = async (
+  filter,
+  customStartDate,
+  customEndDate
+) => {
   try {
-    
-    const currentPeriodData = await calculateTotalAdSpendByDate(filter, customStartDate, customEndDate);
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const currentPeriodData = await calculateTotalAdSpendByDate(
+      filter,
+      customStartDate,
+      customEndDate
+    );
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(endDate);
 
@@ -1211,8 +1428,11 @@ export const getTotalAdSpendComparison = async (filter, customStartDate, customE
 
     previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
-    const previousPeriodData = await calculateTotalAdSpendByDate(filter='custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
-
+    const previousPeriodData = await calculateTotalAdSpendByDate(
+      (filter = "custom_date_range"),
+      previousStartDate.toISOString(),
+      previousEndDate.toISOString()
+    );
 
     const sumAdSpend = (adSpendData) =>
       adSpendData.reduce((acc, item) => acc + item.spend, 0);
@@ -1220,12 +1440,14 @@ export const getTotalAdSpendComparison = async (filter, customStartDate, customE
     const totalCurrentAdSpend = sumAdSpend(currentPeriodData.adSpendByDate);
     const totalPreviousAdSpend = sumAdSpend(previousPeriodData.adSpendByDate);
 
-
     // Compare current and previous periods
     const comparison = {
       currentPeriodData: currentPeriodData,
       previousPeriodData: previousPeriodData,
-      percentageComparison: calculatePercentageChange(totalCurrentAdSpend, totalPreviousAdSpend),
+      percentageComparison: calculatePercentageChange(
+        totalCurrentAdSpend,
+        totalPreviousAdSpend
+      ),
     };
 
     return comparison;
@@ -1233,10 +1455,6 @@ export const getTotalAdSpendComparison = async (filter, customStartDate, customE
     throw new Error(error.message);
   }
 };
-
-
-
-
 
 const calculateTotalSales = async () => {
   try {
@@ -1271,8 +1489,6 @@ const calculateTotalSales = async () => {
     throw error;
   }
 };
-
-
 
 export const calculateGrossProfitBreakdown = async () => {
   try {
@@ -1327,17 +1543,19 @@ export const calculateGrossProfitBreakdown = async () => {
         productId,
         grossProfit,
         percentageContribution: `${(
-          (grossProfit / totalGrossProfit) * 100
-        ).toFixed(2)}%`, 
+          (grossProfit / totalGrossProfit) *
+          100
+        ).toFixed(2)}%`,
       })
     );
 
     return productBreakdown;
   } catch (error) {
-    throw new Error(`Error calculating gross profit breakdown: ${error.message}`);
+    throw new Error(
+      `Error calculating gross profit breakdown: ${error.message}`
+    );
   }
 };
-
 
 const calculateProductProfitability = async () => {
   try {
@@ -1348,23 +1566,25 @@ const calculateProductProfitability = async () => {
           from: "products",
           localField: "lineItems.product.id",
           foreignField: "id",
-          as: "productDetails"
-        }
+          as: "productDetails",
+        },
       },
-      { $unwind: "$productDetails" }
+      { $unwind: "$productDetails" },
     ]);
 
     const productMetrics = {};
     let totalGrossProfit = 0;
-    orders.forEach(order => {
+    orders.forEach((order) => {
       const variantId = order.lineItems.product.id;
       const quantity = order.lineItems.quantity;
       const sellingPrice = parseFloat(order.productDetails.userPrice);
       const costPrice = parseFloat(order.productDetails.costPrice);
       const title = order.lineItems.title || order.productDetails.title;
-      const imageUrl = order.productDetails.image || '';
+      const imageUrl = order.productDetails.image || "";
       if (isNaN(sellingPrice) || isNaN(costPrice)) {
-        console.log(`Skipping product with invalid prices. Variant ID: ${variantId}`);
+        console.log(
+          `Skipping product with invalid prices. Variant ID: ${variantId}`
+        );
         return;
       }
 
@@ -1391,23 +1611,24 @@ const calculateProductProfitability = async () => {
         };
       }
     });
-    const productProfitability = Object.values(productMetrics).map(product => {
-      const grossProfitMargin = (product.grossProfit / product.netSalesValue) * 100;
-      return {
-        ...product,
-        grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)) 
-      };
-    });
+    const productProfitability = Object.values(productMetrics).map(
+      (product) => {
+        const grossProfitMargin =
+          (product.grossProfit / product.netSalesValue) * 100;
+        return {
+          ...product,
+          grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)),
+        };
+      }
+    );
     productProfitability.sort((a, b) => b.grossProfit - a.grossProfit);
 
     return productProfitability;
-
   } catch (error) {
     console.error("Error calculating product profitability:", error);
     throw error;
   }
 };
-
 
 const calculateLeastProfitableProducts = async () => {
   try {
@@ -1437,28 +1658,38 @@ const calculateBestSellers = async () => {
   }
 };
 
-
-
-export const calculateBlendedCAC = async (filter, customStartDate, customEndDate) => {
+export const calculateBlendedCAC = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
   try {
     // Get the date range
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
 
     // Determine whether to group by day or month
-    let groupBy = 'day';
-    if (filter === 'three_months' || filter === 'six_months') {
-      groupBy = 'month';
+    let groupBy = "day";
+    if (filter === "three_months" || filter === "six_months") {
+      groupBy = "month";
     }
 
     // Generate the array of dates or months
-    const dateArray = groupBy === 'month' ? generateMonthArray(startDate, endDate) : generateDateArray(startDate, endDate);
+    const dateArray =
+      groupBy === "month"
+        ? generateMonthArray(startDate, endDate)
+        : generateDateArray(startDate, endDate);
 
     // Set the group format based on groupBy
-    const groupFormat = groupBy === 'month' ? "%Y-%m" : "%Y-%m-%d";
+    const groupFormat = groupBy === "month" ? "%Y-%m" : "%Y-%m-%d";
 
     // Convert dates to strings for querying MetaAdInsights
-    const startDateString = startDate.toISOString().split('T')[0];
-    const endDateString = endDate.toISOString().split('T')[0];
+    const startDateString = startDate.toISOString().split("T")[0];
+    const endDateString = endDate.toISOString().split("T")[0];
 
     // Fetch total ad spend within the date range
     const totalAdSpendResult = await MetaAdInsights.aggregate([
@@ -1470,7 +1701,9 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       },
       {
         $group: {
-          _id: { $dateToString: { format: groupFormat, date: { $toDate: "$date" } } },
+          _id: {
+            $dateToString: { format: groupFormat, date: { $toDate: "$date" } },
+          },
           totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
         },
       },
@@ -1481,39 +1714,47 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
-          "customer.id": { $ne: null } // Match orders by createdAt field
+          "customer.id": { $ne: null }, // Match orders by createdAt field
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: "$createdAt" } },
-          uniqueCustomers: { $addToSet: "$customer.id" } // Collect unique customer IDs
+          uniqueCustomers: { $addToSet: "$customer.id" }, // Collect unique customer IDs
         },
       },
       {
         $project: {
           _id: 1,
-          uniqueCustomersCount: { $size: "$uniqueCustomers" } // Count unique customer IDs
+          uniqueCustomersCount: { $size: "$uniqueCustomers" }, // Count unique customer IDs
         },
       },
     ]);
 
     // Prepare maps of results
-    const adSpendMap = totalAdSpendResult.reduce((acc, { _id, totalAdSpend }) => {
-      acc[_id] = totalAdSpend;
-      return acc;
-    }, {});
+    const adSpendMap = totalAdSpendResult.reduce(
+      (acc, { _id, totalAdSpend }) => {
+        acc[_id] = totalAdSpend;
+        return acc;
+      },
+      {}
+    );
 
-    const uniqueCustomerMap = uniqueCustomersCountResult.reduce((acc, { _id, uniqueCustomersCount }) => {
-      acc[_id] = uniqueCustomersCount;
-      return acc;
-    }, {});
+    const uniqueCustomerMap = uniqueCustomersCountResult.reduce(
+      (acc, { _id, uniqueCustomersCount }) => {
+        acc[_id] = uniqueCustomersCount;
+        return acc;
+      },
+      {}
+    );
 
     // Format the data by date or month and calculate Blended CAC
-    const formattedData = dateArray.map(date => {
-      const dateString = groupBy === 'month'
-        ? date.toISOString().slice(0,7) // Get 'YYYY-MM'
-        : date.toISOString().split('T')[0]; // Get 'YYYY-MM-DD'
+    const formattedData = dateArray.map((date) => {
+      const dateString =
+        groupBy === "month"
+          ? date.toISOString().slice(0, 7) // Get 'YYYY-MM'
+          : date.toISOString().split("T")[0]; // Get 'YYYY-MM-DD'
 
       const adSpend = adSpendMap[dateString] || 0;
       const uniqueCustomers = uniqueCustomerMap[dateString] || 0;
@@ -1528,11 +1769,18 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
     });
 
     // Calculate total ad spend and unique customers
-    const totalAdSpend = formattedData.reduce((sum, { adSpend }) => sum + adSpend, 0);
-    const totalUniqueCustomers = formattedData.reduce((sum, { uniqueCustomers }) => sum + uniqueCustomers, 0);
-    const blendedCAC = totalUniqueCustomers > 0 ? totalAdSpend / totalUniqueCustomers : 0;
+    const totalAdSpend = formattedData.reduce(
+      (sum, { adSpend }) => sum + adSpend,
+      0
+    );
+    const totalUniqueCustomers = formattedData.reduce(
+      (sum, { uniqueCustomers }) => sum + uniqueCustomers,
+      0
+    );
+    const blendedCAC =
+      totalUniqueCustomers > 0 ? totalAdSpend / totalUniqueCustomers : 0;
 
-    const dataKey = groupBy === 'month' ? 'dataByMonth' : 'dataByDate';
+    const dataKey = groupBy === "month" ? "dataByMonth" : "dataByDate";
 
     return {
       totalAdSpend: totalAdSpend,
@@ -1541,40 +1789,66 @@ export const calculateBlendedCAC = async (filter, customStartDate, customEndDate
       [dataKey]: formattedData,
     };
   } catch (error) {
-    console.error('Error in calculateBlendedCAC:', error.message);
+    console.error("Error in calculateBlendedCAC:", error.message);
     throw error;
   }
 };
 
-
-export const getBlendedCACComparison = async (filter, customStartDate, customEndDate) => {
+export const getBlendedCACComparison = async (
+  filter,
+  customStartDate,
+  customEndDate
+) => {
   try {
-    const currentPeriodData = await calculateBlendedCAC(filter, customStartDate, customEndDate);
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const currentPeriodData = await calculateBlendedCAC(
+      filter,
+      customStartDate,
+      customEndDate
+    );
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(endDate);
     previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
-    const previousPeriodData = await calculateBlendedCAC('custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
+    const previousPeriodData = await calculateBlendedCAC(
+      "custom_date_range",
+      previousStartDate.toISOString(),
+      previousEndDate.toISOString()
+    );
     const comparison = {
-      currentPeriodBlendedCAC:currentPeriodData,
-      previousPeriodBlendedCAC:previousPeriodData,
-      percentageComparison: calculatePercentageChange(currentPeriodData.blendedCAC, previousPeriodData.blendedCAC),
+      currentPeriodBlendedCAC: currentPeriodData,
+      previousPeriodBlendedCAC: previousPeriodData,
+      percentageComparison: calculatePercentageChange(
+        currentPeriodData.blendedCAC,
+        previousPeriodData.blendedCAC
+      ),
     };
 
     return comparison;
   } catch (error) {
-    console.error('Error in getBlendedCACComparison:', error.message);
+    console.error("Error in getBlendedCACComparison:", error.message);
     throw error;
   }
 };
 
-
-export const calculateBlendedROAS = async (filter, customStartDate, customEndDate) => {
+export const calculateBlendedROAS = async (
+  filter,
+  customStartDate,
+  customEndDate,
+  userShopId
+) => {
   try {
     // Get the date range
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
 
     // Calculate the difference in days
     const dateDifference = (endDate - startDate) / (1000 * 60 * 60 * 24);
@@ -1583,14 +1857,16 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
     const groupByMonth = dateDifference > 61;
 
     // Generate the appropriate array of dates or months
-    const dateArray = groupByMonth ? generateMonthArray(startDate, endDate) : generateDateArray(startDate, endDate);
+    const dateArray = groupByMonth
+      ? generateMonthArray(startDate, endDate)
+      : generateDateArray(startDate, endDate);
 
     // Set the group format based on the date range
     const groupFormat = groupByMonth ? "%Y-%m" : "%Y-%m-%d";
 
     // Convert dates to strings for querying MetaAdInsights
-    const startDateString = startDate.toISOString().split('T')[0];
-    const endDateString = endDate.toISOString().split('T')[0];
+    const startDateString = startDate.toISOString().split("T")[0];
+    const endDateString = endDate.toISOString().split("T")[0];
 
     // Fetch total ad spend by date or month
     const adSpendByDate = await MetaAdInsights.aggregate([
@@ -1602,7 +1878,9 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
       },
       {
         $group: {
-          _id: { $dateToString: { format: groupFormat, date: { $toDate: "$date" } } },
+          _id: {
+            $dateToString: { format: groupFormat, date: { $toDate: "$date" } },
+          },
           totalAdSpend: { $sum: { $toDouble: "$insights.spend" } },
         },
       },
@@ -1614,6 +1892,7 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
         $match: {
           createdAt: { $gte: startDate, $lte: endDate },
           "customer.id": { $ne: null },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
@@ -1636,10 +1915,13 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
     }, {});
 
     // Calculate ROAS for each date or month in the range
-    const roasData = dateArray.map(date => {
+    const roasData = dateArray.map((date) => {
       const dateString = groupByMonth
-        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        : date.toISOString().split('T')[0];
+        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}`
+        : date.toISOString().split("T")[0];
       const totalSales = salesMap[dateString] || 0;
       const totalAdSpend = adSpendMap[dateString] || 0;
       const roas = totalAdSpend > 0 ? totalSales / totalAdSpend : 0;
@@ -1656,52 +1938,76 @@ export const calculateBlendedROAS = async (filter, customStartDate, customEndDat
       data: roasData,
     };
   } catch (error) {
-    console.error('Error in calculateBlendedROAS:', error.message);
+    console.error("Error in calculateBlendedROAS:", error.message);
     throw error;
   }
 };
 
-export const getBlendedROASComparison = async (filter, customStartDate, customEndDate) => {
+export const getBlendedROASComparison = async (
+  filter,
+  customStartDate,
+  customEndDate
+) => {
   try {
-    const currentPeriodData = await calculateBlendedROAS(filter, customStartDate, customEndDate);
-    const { startDate, endDate } = getDateRange(filter, customStartDate, customEndDate);
+    const currentPeriodData = await calculateBlendedROAS(
+      filter,
+      customStartDate,
+      customEndDate
+    );
+    const { startDate, endDate } = getDateRange(
+      filter,
+      customStartDate,
+      customEndDate
+    );
     const dayDiff = (endDate - startDate) / (1000 * 60 * 60 * 24);
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(endDate);
     previousStartDate.setDate(previousStartDate.getDate() - dayDiff);
     previousEndDate.setDate(previousEndDate.getDate() - dayDiff);
-    const previousPeriodData = await calculateBlendedROAS(filter='custom_date_range', previousStartDate.toISOString(), previousEndDate.toISOString());
+    const previousPeriodData = await calculateBlendedROAS(
+      (filter = "custom_date_range"),
+      previousStartDate.toISOString(),
+      previousEndDate.toISOString()
+    );
 
     const sumROAS = (roasData) => {
-      const totalSales = roasData.data.reduce((acc, item) => acc + parseFloat(item.totalSales), 0);
-      const totalAdSpend = roasData.data.reduce((acc, item) => acc + parseFloat(item.totalAdSpend), 0);
+      const totalSales = roasData.data.reduce(
+        (acc, item) => acc + parseFloat(item.totalSales),
+        0
+      );
+      const totalAdSpend = roasData.data.reduce(
+        (acc, item) => acc + parseFloat(item.totalAdSpend),
+        0
+      );
       return totalAdSpend > 0 ? totalSales / totalAdSpend : 0;
     };
 
     const totalCurrentROAS = sumROAS(currentPeriodData);
     const totalPreviousROAS = sumROAS(previousPeriodData);
-    
+
     // Compare current and previous periods
     const comparison = {
       currentPeriodROAS: currentPeriodData,
       previousPeriodROAS: previousPeriodData,
-      percentageComparison: calculatePercentageChange(totalCurrentROAS, totalPreviousROAS),
+      percentageComparison: calculatePercentageChange(
+        totalCurrentROAS,
+        totalPreviousROAS
+      ),
     };
-    
+
     return comparison;
   } catch (error) {
     throw new Error(error.message);
   }
 };
 
-
 // const breakDataIntoWeeks = (dailyData) => {
 //   const weeklyData = [];
-  
+
 //   dailyData.forEach(day => {
 //     const weekStart = moment(day.date).startOf('isoWeek').format('YYYY-MM-DD');
 //     const existingWeek = weeklyData.find(week => week.weekStart === weekStart);
-    
+
 //     if (existingWeek) {
 //       existingWeek.totalSpend += day.spend;
 //     } else {
@@ -1721,7 +2027,7 @@ export const getBlendedROASComparison = async (filter, customStartDate, customEn
 //   dailyData.forEach(day => {
 //     const monthStart = moment(day.date).startOf('month').format('YYYY-MM-DD');
 //     const existingMonth = monthlyData.find(month => month.monthStart === monthStart);
-    
+
 //     if (existingMonth) {
 //       existingMonth.totalSpend += day.spend;
 //     } else {
@@ -1741,7 +2047,7 @@ export const getBlendedROASComparison = async (filter, customStartDate, customEn
 //   dailyData.forEach(day => {
 //     const quarterStart = moment(day.date).startOf('quarter').format('YYYY-MM-DD');
 //     const existingQuarter = quarterlyData.find(quarter => quarter.quarterStart === quarterStart);
-    
+
 //     if (existingQuarter) {
 //       existingQuarter.totalSpend += day.spend;
 //     } else {
@@ -1754,7 +2060,6 @@ export const getBlendedROASComparison = async (filter, customStartDate, customEn
 
 //   return quarterlyData;
 // };
-
 
 // const getDailyAdSpendForPastThreeMonths = async () => {
 //   try {
@@ -1831,7 +2136,6 @@ export const getBlendedROASComparison = async (filter, customStartDate, customEn
 //   }
 // };
 
-
 export default {
   getSalesTrends,
   getAOV,
@@ -1857,6 +2161,6 @@ export default {
   getAOVComparison,
   getBlendedROASComparison,
   getBlendedCACComparison,
-  getDateRange
+  getDateRange,
   // getDailyAdSpendForPastThreeMonths
 };
