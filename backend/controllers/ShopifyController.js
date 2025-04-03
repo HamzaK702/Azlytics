@@ -23,7 +23,7 @@ export class ShopifyController {
 
         const userShopId = result._id; // Get the saved UserShop's ID
 
-        eventEmitter.emit("shopAuthSuccess", { shop, accessToken });
+        eventEmitter.emit("shopAuthSuccess", { shop, accessToken, userShopId });
         console.log("We received a token: " + accessToken);
 
         // return res.redirect(

@@ -12,7 +12,7 @@ export const saveCustomerData = async (
   shopToken
 ) => {
   try {
-    const userShop = await UserShop.findOne({ shop: shopName });
+    const userShop = await UserShop.findById(userShopId);
     if (!userShop) {
       throw new Error("UserShop not found");
     }
@@ -85,7 +85,7 @@ export const saveOrderData = async (
   shopToken
 ) => {
   try {
-    const userShop = await UserShop.findOne({ shop: shopName });
+    const userShop = await UserShop.findById(userShopId);
     if (!userShop) {
       throw new Error("UserShop not found");
     }
@@ -175,6 +175,7 @@ export const saveOrderData = async (
         //Only save the data if resp is not null.
       }
     }
+
     console.log("Data saved successfully");
   } catch (error) {
     console.error("Error saving data:", error.message);
@@ -188,7 +189,7 @@ export const saveProductData = async (
   shopToken
 ) => {
   try {
-    const userShop = await UserShop.findOne({ shop: shopName });
+    const userShop = await UserShop.findById(userShopId);
     if (!userShop) {
       throw new Error("UserShop not found");
     }

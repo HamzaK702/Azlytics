@@ -1,5 +1,4 @@
 import EventEmitter from "events";
-import userShop from "../models/userShopModel.js";
 import { BulkOperationService } from "../services/bulkOperationService.js";
 import {
   saveCustomerData,
@@ -142,8 +141,8 @@ const createAndCheckBulkOperations = async (shop, token, userShopId) => {
   }
 };
 
-eventEmitter.on("shopAuthSuccess", ({ shop, accessToken }) => {
-  createAndCheckBulkOperations(shop, accessToken, userShop._id);
+eventEmitter.on("shopAuthSuccess", ({ shop, accessToken, userShopId }) => {
+  createAndCheckBulkOperations(shop, accessToken, userShopId);
 });
 
 export default createAndCheckBulkOperations;
