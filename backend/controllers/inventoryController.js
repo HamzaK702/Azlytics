@@ -28,8 +28,7 @@ export const fetchInventory = async (req, res) => {
 
 export const fetchInventoryTableData = async (req, res) => {
   try {
-    const userShopId = req.userShopId;
-    console.log(typeof userShopId);
+    const { userShopId } = req;
     const tableData = await getInventoryTableData(userShopId);
     res.json(tableData);
   } catch (error) {
