@@ -9,8 +9,6 @@ export const getInventory = async (
   userShopId
 ) => {
   try {
-    console.log("userShopid in the inventory service", userShopId);
-
     const now = new Date();
     let startDate;
     let endDate;
@@ -105,11 +103,11 @@ export const getInventory = async (
     const pipeline = [
       {
         $match: {
-          userShopId: new mongoose.Types.ObjectId(userShopIdLocale),
           createdAt: {
             $gte: new Date(startDateISO),
             $lte: new Date(endDateISO),
           },
+          userShopId: new mongoose.Types.ObjectId(userShopId),
         },
       },
       {
@@ -275,18 +273,18 @@ export const getInventoryTableData = async (userShopIdLocale) => {
       }
 
       return {
-        // product: item.productTitle,
-        // status: item.status,
-        // inventory: item.inventory,
-        // salesChannels: item.salesChannels,
-        // markets: item.markets,
-        // category: item.category || "N/A",
-        // type: item.type || "N/A",
-        // vendor: item.vendor || "N/A",
-        // noOfDays: noOfDays.toFixed(2),
-        // endingDate: endingDate.toISOString().split("T")[0],
-        // health: health,
-        data,
+        product: item.productTitle,
+        status: item.status,
+        inventory: item.inventory,
+        salesChannels: item.salesChannels,
+        markets: item.markets,
+        category: item.category || "N/A",
+        type: item.type || "N/A",
+        vendor: item.vendor || "N/A",
+        noOfDays: noOfDays.toFixed(2),
+        endingDate: endingDate.toISOString().split("T")[0],
+        health: health,
+        // data,
       };
     });
 
