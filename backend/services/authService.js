@@ -14,6 +14,12 @@ const registerFirebaseUser = async (userData, userShopId) => {
     throw new Error("User already exists");
   }
 
+  if (!mongoose.Types.ObjectId.isValid(userShopId)) {
+    throw new Error(
+      "UserShop Id from params should be mongoose format correct Id"
+    );
+  }
+
   // Create a new user
   const newUser = new User({ name, email, uid });
   await newUser.save();
@@ -54,7 +60,7 @@ const loginFirebaseUser = async (uid, userShopIdFromParams) => {
   }
 
   let userShopId;
-  if (userShopIdFromParams) {
+  if (mongoose.Types.ObjectId.isValid(userShopId)) {
     const userShopIdFromParamsMongo = new mongoose.Types.ObjectId(
       userShopIdFromParams
     );
