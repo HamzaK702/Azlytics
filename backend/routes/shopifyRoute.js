@@ -34,4 +34,16 @@ router.get("/shopify/products", ShopifyController.getProducts);
 
 router.post("/bulk-operation", ShopifyController.createBulkOperation);
 
+router.get("/billing/confirm", async (req, res) => {
+  const { userShopId } = req.query;
+
+  // const { shop, charge_id } = req.query;
+  // Optional: you could verify charge status here if needed
+
+  // Redirect user to frontend with userShopId
+  return res.redirect(
+    `${process.env.FRONTEND_URL}/sign-up?shopify=true&userShopId=${userShopId}`
+  );
+});
+
 export default router;
