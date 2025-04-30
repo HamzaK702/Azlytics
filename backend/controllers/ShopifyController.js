@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import UserShop from "../models/userShopModel.js";
 import { eventEmitter } from "../services/bulkOperationPipeline.js"; // Import event emitter
+import { createRecurringCharge } from "../services/shopifyBilling.js"; // Import the billing service
 import { ShopifyService } from "../services/ShopifyService.js";
 dotenv.config();
 
@@ -29,6 +30,16 @@ export class ShopifyController {
         // return res.redirect(
         //   `${process.env.FRONTEND_URL}/dashboard?shopify=true`
         // );
+
+        //  ADD: Create billing charge
+        const confirmationUrl = await createRecurringCharge(
+          shop,
+          accessToken,
+          userShopId
+        );
+
+        //  Redirect user to Shopify billing confirmation page
+        return res.redirect(confirmationUrl);
         return res.redirect(
           `${process.env.FRONTEND_URL}/sign-up?shopify=true&userShopId=${userShopId}`
         ); //Arham3: isko change krke login/signUp page krdo jisme query me shopify ture/false k sath userShop id bhi bhejo jisko tumne step 2 me save krwaya hai
