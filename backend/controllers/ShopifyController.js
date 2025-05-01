@@ -14,7 +14,9 @@ export class ShopifyController {
     if (shop && code) {
       try {
         const accessToken = await ShopifyService.getAccessToken(shop, code);
+        console.log("We received a token: " + accessToken);
         console.log(shop, hmac, code);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         //Arham2: isko find and update k bjaye sirf create krdo orr isme humain ab userId nhi milay gi toh usko required se hata dena UserShopModel me jakr
         const result = await UserShop.create({
@@ -25,7 +27,7 @@ export class ShopifyController {
         const userShopId = result._id; // Get the saved UserShop's ID
 
         eventEmitter.emit("shopAuthSuccess", { shop, accessToken, userShopId });
-        console.log("We received a token: " + accessToken);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // return res.redirect(
         //   `${process.env.FRONTEND_URL}/dashboard?shopify=true`
@@ -36,6 +38,10 @@ export class ShopifyController {
           shop,
           accessToken,
           userShopId
+        );
+        console.log(
+          "🚀 ~ ShopifyController ~ handleAuth ~ confirmationUrl:",
+          confirmationUrl
         );
 
         //  Redirect user to Shopify billing confirmation page
