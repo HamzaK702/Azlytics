@@ -42,7 +42,7 @@ export class ShopifyController {
             `https://admin.shopify.com/store/${shop.replace(
               ".myshopify.com",
               ""
-            )}/apps/${process.env.APP_HANDLE}/pricing_plans`
+            )}/charges/${process.env.APP_HANDLE}/pricing_plans`
           );
         }
         return res.redirect(
