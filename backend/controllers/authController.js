@@ -1,5 +1,7 @@
 // Import necessary modules
 import dotenv from "dotenv";
+import mongoose from "mongoose";
+import UserShop from "../models/userShopModel.js";
 import authService from "../services/authService.js";
 
 dotenv.config();
@@ -9,7 +11,17 @@ const registerFirebaseUser = async (req, res) => {
   //Arham4: tumhe frontend pr userShopId milgaya hoga query usko user register krwatay waqt idhr bhejo ga
   try {
     const userData = req.body;
-    const { userShopId } = req.query;
+    let { userShopId } = req.query;
+    const { shop } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(userShopId)) {
+      const userShop = await UserShop.findOne({ shop });
+      if (!userShop) {
+        return res.status(404).json({ message: "User shop not found" });
+      }
+      userShopId = userShop._id;
+    }
+
     const { user, token } = await authService.registerFirebaseUser(
       userData,
       userShopId
