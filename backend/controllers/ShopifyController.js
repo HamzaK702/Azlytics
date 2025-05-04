@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import UserShop from "../models/userShopModel.js";
 import { eventEmitter } from "../services/bulkOperationPipeline.js"; // Import event emitter
-import { createRecurringCharge } from "../services/shopifyBilling.js"; // Import the billing service
+import { checkIfMerchantHasActivePlan } from "../services/shopifyBilling.js"; // Import the billing service
 import { ShopifyService } from "../services/ShopifyService.js";
 dotenv.config();
 
@@ -27,28 +27,27 @@ export class ShopifyController {
         const userShopId = result._id; // Get the saved UserShop's ID
 
         eventEmitter.emit("shopAuthSuccess", { shop, accessToken, userShopId });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL}/dashboard?shopify=true`
-        // );
-
-        //  ADD: Create billing charge
-        const confirmationUrl = await createRecurringCharge(
+        // Check if this shop already has an active plan
+        const isSubscribed = await checkIfMerchantHasActivePlan(
           shop,
-          accessToken,
-          userShopId
-        );
-        console.log(
-          "🚀 ~ ShopifyController ~ handleAuth ~ confirmationUrl:",
-          confirmationUrl
+          accessToken
         );
 
-        //  Redirect user to Shopify billing confirmation page
-        return res.redirect(confirmationUrl);
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL}/sign-up?shopify=true&userShopId=${userShopId}`
-        // ); //Arham3: isko change krke login/signUp page krdo jisme query me shopify ture/false k sath userShop id bhi bhejo jisko tumne step 2 me save krwaya hai
+        if (!isSubscribed) {
+          console.log(
+            "⛔ No active plan, redirecting to Shopify managed pricing page..."
+          );
+          return res.redirect(
+            `https://admin.shopify.com/store/${shop.replace(
+              ".myshopify.com",
+              ""
+            )}/apps/${process.env.APP_HANDLE}/pricing_plans`
+          );
+        }
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/sign-up?shopify=true&userShopId=${userShopId}`
+        );
       } catch (error) {
         console.error("Error getting Shopify access token:", error.message);
         return res.redirect(
