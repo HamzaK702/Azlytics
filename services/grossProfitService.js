@@ -7,6 +7,7 @@ import Order from "../models/BulkTables/BulkOrder/order.js";
 import MetaAdInsights from "../models/metaAdInsightModel.js";
 import OverheadCost from "../models/overheadCostModel.js";
 import { getDateRange } from "./dateHelpers.js";
+
 const calculateGrossProfitData = async (filter, userShopId) => {
   try {
     // Get the date range based on the filter

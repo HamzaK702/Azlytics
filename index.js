@@ -26,6 +26,7 @@ import retentionRoutes from "./routes/retentionRoutes.js";
 import salesRoutes from "./routes/salesRoutes.js";
 import shopifyRouter from "./routes/shopifyRoute.js";
 import TikTokAdsRoute from "./routes/tiktokAdsRoute.js";
+import UserRoutes from "./routes/userRoutes.js";
 import TikTokOAuthRoute from "./routes/tiktokOAuthRoute.js";
 
 /* CONFIGURATIONS */
@@ -38,28 +39,34 @@ app.use(express.json());
 app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(morgan("common"));
-app.use(cors());
+app.use(
+    cors({
+        origin: "http://localhost:5174",
+        credentials: true,
+    })
+);
+app.options("*", cors());
 app.use(cookieParser());
 app.use(
-  bodyParser.json({
-    type: "/",
-    limit: "50mb",
-    verify: function (req, res, buf) {
-      if (req.url.startsWith("/webhooks")) {
-        req.rawbody = buf;
-      }
-    },
-  })
+    bodyParser.json({
+        type: "/",
+        limit: "50mb",
+        verify: function (req, res, buf) {
+            if (req.url.startsWith("/webhooks")) {
+                req.rawbody = buf;
+            }
+        },
+    })
 );
 
 // Session middleware
 app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === "production" }, // Ensure cookies are secure in production
-  })
+    session({
+        secret: process.env.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: { secure: process.env.NODE_ENV === "production" }, // Ensure cookies are secure in production
+    })
 );
 
 // Passport middleware
@@ -68,17 +75,17 @@ app.use(passport.session());
 
 // Test API
 app.get("/hello", async (req, res) => {
-  const shop = "dumbclient.myshopify.com";
-  const token = "shpua_9dd90273c982021d4c9bed11b7bc6e6c";
-  const orderId = "gid://shopify/Order/6052399480893";
-  //const resp = await ShopifyService.getShippingRates(shop, token, orderId)
+    const shop = "dumbclient.myshopify.com";
+    const token = "shpua_9dd90273c982021d4c9bed11b7bc6e6c";
+    const orderId = "gid://shopify/Order/6052399480893";
+    //const resp = await ShopifyService.getShippingRates(shop, token, orderId)
 
-  res.send("Hello, Login Success ");
+    res.send("Hello, Login Success ");
 });
 
 /* ROUTES */
 app.use("/api", authRoutes);
-app.use("/api", shopifyRouter);
+app.use("/", shopifyRouter);
 app.use("/bulk", bulkRoutes);
 app.use("/api", googleAdAuthRoutes);
 app.use("/api", facebookRoutes);
@@ -92,6 +99,7 @@ app.use("/api", InventoryRoutes);
 app.use("/api", profitabilityRoutes);
 app.use("/api", gptRoutes);
 app.use("/api", TikTokAdsRoute);
+app.use("/api", UserRoutes); // user route
 app.use("/api", UplodaDataCsvRoute); // data upload from csv route
 app.use("/api/tiktok", TikTokOAuthRoute);
 app.use("/webhooks", dataDeletionRoute);
@@ -100,8 +108,8 @@ app.use("/webhooks", dataDeletionRoute);
 const PORT = process.env.SERVER_PORT || 3002;
 mongoose.set("strictQuery", true);
 mongoose
-  .connect(process.env.MONGO_URL)
-  .then(() => {
-    app.listen(PORT, () => console.log(`Server Port: ${PORT}`));
-  })
-  .catch((error) => console.log(`${error} did not connect`));
+    .connect(process.env.MONGO_URL)
+    .then(() => {
+        app.listen(PORT, () => console.log(`Server Port: ${PORT}`));
+    })
+    .catch((error) => console.log(`${error} did not connect`));

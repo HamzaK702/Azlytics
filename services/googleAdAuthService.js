@@ -8,7 +8,7 @@ const OAuth2 = google.auth.OAuth2;
 const oauth2Client = new OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.FORWARDING_ADDRESS}/google-auth/callback`
+  `${process.env.APP_URL}/google-auth/callback`
 );
 
 // google ads api sdk setup

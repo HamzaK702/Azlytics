@@ -5,9 +5,11 @@ import Order from "../models/BulkTables/BulkOrder/order.js";
 import Product from "../models/BulkTables/BulkProduct/product.js";
 import Customer from "../models/BulkTables/BulkCustomer/customer.js";
 
+if(process.env.OPENAI_API_KEY){
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
+}
 
 export const generateCompletion = async (prompt, onData) => {
     try {
